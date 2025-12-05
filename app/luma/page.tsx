@@ -204,7 +204,23 @@ export default function LumaSpeakingTestPage() {
             }
 
             if (msg.type === "response.output_text.done") {
-              const fullText = reportBufferRef.current.trim();
+              const fullText =
+                reportBufferRef.current.trim() ||
+                (Array.isArray(msg.output_text)
+                  ? msg.output_text.join("")
+                  : msg.output_text || "").toString().trim() ||
+                (Array.isArray(msg.response?.output_text)
+                  ? msg.response.output_text.join("")
+                  : msg.response?.output_text || "").toString().trim();
+
+              if (!fullText) {
+                appendLog(
+                  "No written evaluation received from LUMA. Please try stopping the test again."
+                );
+                setStatus("active");
+                return;
+              }
+
               appendLog("Final written evaluation received from LUMA.");
               processFinalReport(fullText);
               return;
