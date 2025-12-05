@@ -22,9 +22,8 @@ export async function POST(_req: NextRequest) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          // 👇 QUI il formato corretto
           expires_after: {
-            anchor: "now",
+            anchor: "created_at",   // 👈 valore corretto
             seconds: 600
           },
           session: {
