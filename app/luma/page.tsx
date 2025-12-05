@@ -15,7 +15,7 @@ type ReportState = {
     recommendations?: string[];
     overall_comment?: string;
   };
-};
+}; 
 
 export default function LumaSpeakingTestPage() {
   const [status, setStatus] = useState<Status>("idle");
