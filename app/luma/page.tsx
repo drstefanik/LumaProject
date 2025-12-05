@@ -18,12 +18,11 @@ export default function LumaSpeakingTestPage() {
   function appendLog(msg: string) {
     setLog((l) => {
       const next = [...l, `${new Date().toLocaleTimeString()} – ${msg}`];
-      // tieni solo le ultime 80 righe per non esplodere
-      return next.slice(-80);
+      return next.slice(-80); // solo ultime 80 righe
     });
   }
 
-  // timer “durata sessione”
+  // Timer durata sessione
   useEffect(() => {
     if (status === "idle") {
       setElapsed(0);
@@ -105,7 +104,7 @@ export default function LumaSpeakingTestPage() {
           setEventCount((c) => c + 1);
 
           if (type === "luma_speaking_report") {
-            appendLog("Received speaking report, sending to backend…");
+            appendLog("Received speaking report, sending to backend...");
             fetch("/api/report", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -114,7 +113,6 @@ export default function LumaSpeakingTestPage() {
               appendLog("Report saved to Airtable (if configured).");
             });
           } else {
-            // log compatto
             appendLog(`Event: ${type}`);
           }
         } catch {
@@ -125,7 +123,7 @@ export default function LumaSpeakingTestPage() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      appendLog("Sending SDP offer to OpenAI Realtime API…");
+      appendLog("Sending SDP offer to OpenAI Realtime API...");
 
       const callRes = await fetch(
         "https://api.openai.com/v1/realtime/calls?model=gpt-realtime",
@@ -218,12 +216,11 @@ export default function LumaSpeakingTestPage() {
             </p>
           </div>
 
-          {/* Middle section: mic + status + waveform */}
+          {/* Middle: mic + waveform + status */}
           <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-8 items-center">
-            {/* Left: mic + buttons */}
+            {/* Left */}
             <div className="flex flex-col items-center gap-6">
               <div className="relative flex items-center justify-center">
-                {/* Pulsing halo when active */}
                 {status !== "idle" && (
                   <span className="absolute h-36 w-36 rounded-full bg-fuchsia-500/40 blur-xl animate-pulse" />
                 )}
@@ -234,7 +231,6 @@ export default function LumaSpeakingTestPage() {
                   className="relative h-28 w-28 md:h-32 md:w-32 rounded-full bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500 shadow-xl shadow-fuchsia-700/40 flex items-center justify-center border border-white/40 disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-105"
                 >
                   <span className="sr-only">Start speaking test</span>
-                  {/* Mic icon */}
                   <div className="flex flex-col items-center">
                     <div className="h-9 w-5 rounded-full bg-white/90 mb-1" />
                     <div className="h-1.5 w-7 rounded-full bg-white/80" />
@@ -295,7 +291,7 @@ export default function LumaSpeakingTestPage() {
               </div>
             </div>
 
-            {/* Right: session info card */}
+            {/* Right: session info */}
             <div className="rounded-2xl bg-white/5 border border-white/15 p-4 md:p-5 space-y-3 text-sm">
               <h2 className="text-sm font-semibold text-fuchsia-200">
                 Session insights (live)
@@ -335,10 +331,10 @@ export default function LumaSpeakingTestPage() {
             </div>
           </div>
 
-          {/* Hidden audio element */}
+          {/* Audio hidden */}
           <audio ref={audioRef} autoPlay />
 
-          {/* Log panel */}
+          {/* Log */}
           <div className="mt-4 rounded-2xl border border-white/15 bg-black/55 backdrop-blur-xl p-4 h-60 overflow-auto text-[11px] font-mono text-slate-100 shadow-inner shadow-black/60">
             {log.length === 0 ? (
               <div className="text-slate-400/80">
