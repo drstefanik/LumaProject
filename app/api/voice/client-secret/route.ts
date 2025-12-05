@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 60;
 
 const apiKey = process.env.OPENAI_API_KEY;
-const projectId = process.env.OPENAI_PROJECT_ID;
+const projectId = process.env.OPENAI_PROJECT_ID as string; // 👈 forziamo il tipo a string
 
 if (!apiKey) {
   throw new Error("Missing OPENAI_API_KEY environment variable");
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "OpenAI-Project": projectId,
+        "OpenAI-Project": projectId,        // ora è string, niente union
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
           type: "realtime",
           model: "gpt-realtime",
           // niente prompt qui: lo settiamo dal client con session.update
-          // se vuoi puoi mettere delle istruzioni di base:
           // instructions: "You are LUMA, the AI speaking examiner for British Institutes.",
         },
       }),
