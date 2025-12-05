@@ -150,35 +150,60 @@ export default function LumaSpeakingTestPage() {
     appendLog("Session closed.");
   }
 
-  return (
-    <main className="flex flex-col items-center p-6 gap-4">
-      <h1 className="text-2xl font-semibold">LUMA – Speaking Test</h1>
-      <p className="text-sm text-slate-600 max-w-xl text-center">
-        When you click start, LUMA will talk to you in English and evaluate
+return (
+  <main className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden">
+    
+    {/* Background video */}
+    <video
+      className="absolute inset-0 w-full h-full object-cover opacity-40"
+      src="/Luma-project.mp4"
+      autoPlay
+      loop
+      muted
+      playsInline
+    />
+
+    {/* Gradient overlay for readability */}
+    <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60"></div>
+
+    {/* Foreground content */}
+    <div className="relative z-10 max-w-2xl w-full p-6">
+      <h1 className="text-4xl font-bold text-white text-center drop-shadow-lg">
+        LUMA – Speaking Test
+      </h1>
+
+      <p className="text-sm text-slate-200 text-center mt-2 drop-shadow">
+        When you click start, LUMA will talk to you in English and evaluate 
         your speaking skills. Please use a good microphone and speak clearly.
       </p>
-      <div className="flex gap-3">
+
+      <div className="flex gap-3 justify-center mt-6">
         <button
           onClick={startTest}
           disabled={status !== "idle"}
-          className="px-4 py-2 rounded-lg bg-sky-600 text-white disabled:opacity-50"
+          className="px-5 py-2 rounded-lg bg-pink-600 text-white font-semibold shadow-lg hover:bg-pink-700 disabled:opacity-40"
         >
           Start test
         </button>
+
         <button
           onClick={stopTest}
           disabled={status === "idle"}
-          className="px-4 py-2 rounded-lg bg-slate-200"
+          className="px-5 py-2 rounded-lg bg-white/20 text-white font-semibold backdrop-blur hover:bg-white/30 disabled:opacity-40"
         >
           Stop
         </button>
       </div>
+
       <audio ref={audioRef} autoPlay />
-      <div className="mt-4 w-full max-w-2xl text-xs bg-slate-50 border rounded p-2 h-60 overflow-auto">
+
+      {/* Log panel */}
+      <div className="mt-6 w-full text-xs bg-black/40 backdrop-blur border border-white/20 text-white rounded p-3 h-60 overflow-auto shadow-inner">
         {log.map((l, i) => (
           <div key={i}>{l}</div>
         ))}
       </div>
-    </main>
-  );
+    </div>
+  </main>
+);
 }
