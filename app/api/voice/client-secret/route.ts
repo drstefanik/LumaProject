@@ -19,7 +19,8 @@ export async function POST(_req: NextRequest) {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "OpenAI-Beta": "realtime=v1"
         },
         body: JSON.stringify({
           expires_after: {
