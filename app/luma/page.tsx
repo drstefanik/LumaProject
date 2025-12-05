@@ -282,7 +282,7 @@ EVALUATION & REPORT
       appendLog("Sending SDP offer to OpenAI Realtime API...");
 
 const callRes = await fetch(
-  "https://api.openai.com/v1/realtime?model=gpt-realtime-preview",
+  "https://api.openai.com/v1/realtime",
   {
     method: "POST",
     headers: {
@@ -293,6 +293,7 @@ const callRes = await fetch(
     body: offer.sdp || "",
   }
 );
+
 
 
 
