@@ -22,7 +22,11 @@ export async function POST(_req: NextRequest) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          expires_after: { seconds: 600 },
+          // 👇 QUI il formato corretto
+          expires_after: {
+            anchor: "now",
+            seconds: 600
+          },
           session: {
             type: "realtime",
             model,
