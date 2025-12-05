@@ -22,10 +22,8 @@ export async function POST() {
     const session = await openai.beta.realtime.sessions.create(
       {
         client_secret: {
-          expires_at: {
-            anchor: "created_at",
-            seconds: 600,
-          },
+          // The Realtime API expects an absolute expiry in seconds, not a nested "expires_at" object.
+          expires_in: 600,
         },
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
