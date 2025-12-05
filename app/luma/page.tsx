@@ -2,48 +2,65 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type Status = "idle" | "connecting" | "active";
+type Status = "idle" | "connecting" | "active" | "evaluating";
+
+type ReportState = {
+  rawText: string;
+  parsed?: {
+    candidate_name?: string;
+    cefr_level?: string;
+    accent?: string;
+    strengths?: string[];
+    weaknesses?: string[];
+    recommendations?: string[];
+    overall_comment?: string;
+  };
+};
 
 export default function LumaSpeakingTestPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [log, setLog] = useState<string[]>([]);
-  const [lastEventType, setLastEventType] = useState<string | null>(null);
-  const [eventCount, setEventCount] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
+  const [timer, setTimer] = useState<number>(0);
+  const [report, setReport] = useState<ReportState | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // buffer per il testo del report che arriva in streaming
+  const reportBufferRef = useRef<string>("");
 
   function appendLog(msg: string) {
-    setLog((l) => {
-      const next = [...l, `${new Date().toLocaleTimeString()} – ${msg}`];
-      return next.slice(-80); // solo ultime 80 righe
-    });
+    setLog((l) => [...l, `${new Date().toLocaleTimeString()} – ${msg}`]);
   }
 
-  // Timer durata sessione
-  useEffect(() => {
-    if (status === "idle") {
-      setElapsed(0);
-      return;
-    }
-    const start = Date.now();
-    const id = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
+  function startTimer() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setTimer(0);
+    timerRef.current = setInterval(() => {
+      setTimer((t) => t + 1);
     }, 1000);
-    return () => window.clearInterval(id);
-  }, [status]);
+  }
+
+  function stopTimer() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  }
+
+  useEffect(() => {
+    return () => {
+      // cleanup alla chiusura pagina
+      peerRef.current?.close();
+      stopTimer();
+    };
+  }, []);
 
   async function startTest() {
     try {
-      if (status !== "idle") return;
-
+      setReport(null);
+      reportBufferRef.current = "";
       setStatus("connecting");
-      setLog([]);
-      setLastEventType(null);
-      setEventCount(0);
-
       appendLog("Requesting client secret from backend...");
 
       const res = await fetch("/api/voice/client-secret", {
@@ -92,31 +109,98 @@ export default function LumaSpeakingTestPage() {
       dataChannelRef.current = dc;
 
       dc.onopen = () => {
-        appendLog("Data channel open.");
+        appendLog("Data channel open. Configuring LUMA session...");
         setStatus("active");
+        startTimer();
+
+        // Configuriamo la sessione: LUMA è un examiner, niente valutazione finale parlata
+        const sessionUpdate = {
+          type: "session.update",
+          session: {
+            instructions:
+              "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI. " +
+              "Conduct a realistic English speaking exam (placement / proficiency). Ask questions, keep the conversation natural, " +
+              "and do NOT give the final evaluation or explicit score during the conversation. " +
+              "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
+              "Only then you must produce a structured written evaluation in JSON, without speaking it aloud.",
+            input_audio_format: "webrtc",
+            output_audio_format: "webrtc",
+            // turn detection lato server
+            turn_detection: { type: "server_vad" }
+          }
+        };
+
+        dc.send(JSON.stringify(sessionUpdate));
+        appendLog("Session configured. Start speaking in English!");
       };
 
       dc.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          const type = msg.type ?? "unknown";
-          setLastEventType(type);
-          setEventCount((c) => c + 1);
 
-          if (type === "luma_speaking_report") {
-            appendLog("Received speaking report, sending to backend...");
-            fetch("/api/report", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(msg)
-            }).then(() => {
-              appendLog("Report saved to Airtable (if configured).");
-            });
-          } else {
-            appendLog(`Event: ${type}`);
+          // 1) Filtriamo gli eventi rumorosi per i log
+          if (
+            msg.type === "response.output_audio_transcript.delta" ||
+            msg.type === "input_audio_buffer.append" ||
+            msg.type === "input_audio_buffer.speech_started" ||
+            msg.type === "input_audio_buffer.speech_stopped" ||
+            msg.type === "output_audio_buffer.delta"
+          ) {
+            // non logghiamo questi eventi
+            return;
+          }
+
+          // 2) Transcript comprensibile (se vogliamo visualizzarlo)
+          if (msg.type === "response.output_audio_transcript.done") {
+            const text =
+              msg.output_audio_transcript?.join("") ??
+              msg.output_text ??
+              "";
+            if (text) {
+              appendLog(`LUMA: ${text}`);
+            }
+            return;
+          }
+
+          // 3) Gestione report finale (solo testo, niente audio)
+          if (
+            (msg.type === "response.output_text.delta" ||
+              msg.type === "response.output_text.done") &&
+            msg.response?.metadata?.purpose === "speaking_report"
+          ) {
+            if (msg.type === "response.output_text.delta") {
+              const deltaText = msg.delta?.text ?? "";
+              reportBufferRef.current += deltaText;
+              return;
+            }
+
+            if (msg.type === "response.output_text.done") {
+              const fullText = reportBufferRef.current.trim();
+              appendLog("Final written evaluation received from LUMA.");
+              processFinalReport(fullText);
+              return;
+            }
+          }
+
+          // 4) Log sintetico per gli altri eventi utili
+          if (msg.type === "session.created") {
+            appendLog("Session created.");
+          } else if (msg.type === "response.created") {
+            appendLog("Evaluation response created...");
+          } else if (msg.type === "response.done") {
+            appendLog("Evaluation response completed.");
+          } else if (msg.type === "error") {
+            appendLog("ERROR from Realtime API: " + msg.error?.message);
+          } else if (msg.type?.startsWith("output_audio_buffer.")) {
+            appendLog("Event: " + msg.type.replace("output_audio_buffer.", ""));
+          } else if (msg.type?.startsWith("input_audio_buffer.")) {
+            appendLog("Event: " + msg.type.replace("input_audio_buffer.", ""));
+          } else if (msg.type) {
+            // log minimalista
+            appendLog("Event: " + msg.type);
           }
         } catch {
-          appendLog("Raw message: " + event.data);
+          // messaggi non JSON (rari)
         }
       };
 
@@ -138,10 +222,9 @@ export default function LumaSpeakingTestPage() {
       );
 
       if (!callRes.ok) {
-        const text = await callRes.text();
-        console.error("Realtime call error:", text);
         appendLog("Failed to create realtime call.");
         setStatus("idle");
+        stopTimer();
         return;
       }
 
@@ -151,38 +234,126 @@ export default function LumaSpeakingTestPage() {
         sdp: answerSdp
       });
 
-      appendLog("LUMA connected. Start speaking in English!");
+      appendLog("LUMA connected. Speak naturally in English.");
     } catch (err: any) {
       console.error(err);
       appendLog("Error: " + (err?.message || "unknown"));
       setStatus("idle");
+      stopTimer();
+    }
+  }
+
+  // Quando clicchi "Stop" chiediamo a LUMA SOLO il report scritto
+  function requestFinalEvaluation() {
+    const dc = dataChannelRef.current;
+    if (!dc || dc.readyState !== "open") {
+      appendLog("Data channel not open. Cannot request evaluation.");
+      return;
+    }
+
+    setStatus("evaluating");
+    appendLog(
+      "Requesting final written evaluation from LUMA (no spoken feedback)..."
+    );
+    reportBufferRef.current = "";
+
+    const event = {
+      type: "response.create",
+      response: {
+        modalities: ["text"], // niente audio qui
+        instructions:
+          "Now, as LUMA, produce ONLY a structured JSON evaluation of the candidate's English speaking performance. " +
+          "Do NOT speak this aloud, only return JSON. " +
+          "Use this exact schema: " +
+          "{ \"candidate_name\": string | null, " +
+          "\"cefr_level\": string, " +
+          "\"accent\": string, " +
+          "\"strengths\": string[], " +
+          "\"weaknesses\": string[], " +
+          "\"recommendations\": string[], " +
+          "\"overall_comment\": string }.",
+        metadata: {
+          purpose: "speaking_report"
+        }
+      }
+    };
+
+    dc.send(JSON.stringify(event));
+  }
+
+  async function processFinalReport(text: string) {
+    const trimmed = text.trim();
+    let parsed: ReportState["parsed"] | undefined = undefined;
+
+    try {
+      // Proviamo a parsare come JSON
+      parsed = JSON.parse(trimmed);
+    } catch {
+      // Se non è JSON, lo salviamo comunque come testo grezzo
+    }
+
+    const payload = {
+      created_at: new Date().toISOString(),
+      rawText: trimmed,
+      parsed
+    };
+
+    setReport({
+      rawText: trimmed,
+      parsed
+    });
+
+    appendLog("Sending report to backend (Airtable)...");
+    try {
+      const resp = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        const t = await resp.text();
+        appendLog("Error saving report: " + t);
+      } else {
+        appendLog("Report saved to Airtable (if configured).");
+      }
+    } catch (e: any) {
+      appendLog(
+        "Network error while saving report: " + (e?.message || "unknown")
+      );
+    } finally {
+      // Non chiudiamo subito la call: lasciamo chiudere dall'utente
+      setStatus("active");
     }
   }
 
   function stopTest() {
+    appendLog("Stop pressed. Asking LUMA for final evaluation...");
+    stopTimer();
+    requestFinalEvaluation();
+    // NON chiudiamo ancora la peer connection: aspettiamo il report
+  }
+
+  function hardCloseSession() {
     peerRef.current?.close();
     peerRef.current = null;
     setStatus("idle");
+    stopTimer();
     appendLog("Session closed.");
   }
 
-  const statusLabel =
-    status === "idle"
-      ? "Ready"
-      : status === "connecting"
-      ? "Connecting to LUMA…"
-      : "LUMA is listening";
-
-  const formattedTime = `${String(Math.floor(elapsed / 60)).padStart(
-    2,
-    "0"
-  )}:${String(elapsed % 60).padStart(2, "0")}`;
+  const minutes = String(Math.floor(timer / 60)).padStart(2, "0");
+  const seconds = String(timer % 60).padStart(2, "0");
+  const isIdle = status === "idle";
+  const isConnecting = status === "connecting";
+  const isActive = status === "active";
+  const isEvaluating = status === "evaluating";
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
-      {/* 🔮 Background video */}
+    <main className="relative min-h-screen overflow-hidden bg-black text-white">
+      {/* VIDEO DI SFONDO – il tuo MP4 */}
       <video
-        className="fixed inset-0 w-full h-full object-cover opacity-40 pointer-events-none"
+        className="pointer-events-none fixed inset-0 h-full w-full object-cover opacity-40"
         src="/Luma-project.mp4"
         autoPlay
         loop
@@ -190,162 +361,229 @@ export default function LumaSpeakingTestPage() {
         playsInline
       />
 
-      {/* Nebula overlay */}
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(236,72,153,0.55),transparent_55%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.45),transparent_55%)] mix-blend-screen pointer-events-none" />
+      {/* overlay per leggere bene il testo */}
+      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-black/80 via-black/80 to-black/95" />
 
-      {/* Dark veil */}
-      <div className="fixed inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80 pointer-events-none" />
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-6 py-10">
+        {/* HEADER */}
+        <div className="flex items-center gap-3 text-sm text-pink-300">
+          <span className="flex h-8 items-center rounded-full bg-pink-600/20 px-3 font-semibold">
+            <span className="mr-2 h-2 w-2 rounded-full bg-pink-400 shadow-[0_0_10px_rgba(244,114,182,0.9)]" />
+            LUMA · Language Understanding Mastery Assistant
+          </span>
+        </div>
 
-      {/* Content */}
-      <div className="relative z-10 flex items-center justify-center min-h-screen px-4">
-        <div className="w-full max-w-5xl rounded-3xl bg-black/40 border border-white/15 backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.85)] px-8 py-10 space-y-8">
-          {/* Header */}
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-xs font-medium tracking-wide border border-white/20">
-              <span className="h-2 w-2 rounded-full bg-fuchsia-400 animate-pulse" />
-              LUMA · Language Understanding Mastery Assistant
-            </div>
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight drop-shadow-lg">
-              LUMA – Speaking Test
-            </h1>
-            <p className="max-w-2xl text-sm md:text-base text-slate-200/90">
-              Click <span className="font-semibold">Start test</span> to begin a
-              live speaking session with LUMA. Speak naturally, as in a real
-              exam. At the end, LUMA will generate a structured report on your
-              performance.
-            </p>
-          </div>
+        <section className="mt-2 grid gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          {/* COLONNA SINISTRA: microfono + controlli */}
+          <div className="flex flex-col gap-6">
+            <header className="space-y-3">
+              <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">
+                LUMA – Speaking Test
+              </h1>
+              <p className="max-w-xl text-sm text-slate-200/90">
+                Click <span className="font-semibold">Start test</span> to
+                begin a live speaking session with LUMA. Speak naturally, as in
+                a real exam. At the end, LUMA will generate a structured report
+                on your performance.
+              </p>
+            </header>
 
-          {/* Middle: mic + waveform + status */}
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-8 items-center">
-            {/* Left */}
-            <div className="flex flex-col items-center gap-6">
-              <div className="relative flex items-center justify-center">
-                {status !== "idle" && (
-                  <span className="absolute h-36 w-36 rounded-full bg-fuchsia-500/40 blur-xl animate-pulse" />
-                )}
-
-                <button
-                  onClick={startTest}
-                  disabled={status !== "idle"}
-                  className="relative h-28 w-28 md:h-32 md:w-32 rounded-full bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500 shadow-xl shadow-fuchsia-700/40 flex items-center justify-center border border-white/40 disabled:opacity-40 disabled:cursor-not-allowed transition-transform hover:scale-105"
-                >
-                  <span className="sr-only">Start speaking test</span>
-                  <div className="flex flex-col items-center">
-                    <div className="h-9 w-5 rounded-full bg-white/90 mb-1" />
-                    <div className="h-1.5 w-7 rounded-full bg-white/80" />
-                  </div>
-                </button>
+            {/* microfono grande */}
+            <div className="flex items-center gap-8">
+              <div className="relative flex h-40 w-40 items-center justify-center">
+                {/* cerchi animati */}
+                <div className="absolute h-40 w-40 rounded-full bg-pink-500/20 blur-xl" />
+                <div className="absolute h-32 w-32 animate-pulse rounded-full border border-pink-400/60" />
+                <div className="absolute h-28 w-28 rounded-full bg-gradient-to-b from-pink-500 to-fuchsia-600 shadow-[0_0_30px_rgba(236,72,153,0.9)]" />
+                <span className="relative text-4xl">🎙️</span>
               </div>
 
-              {/* Waveform */}
-              <div className="h-8 flex items-end gap-1">
-                {Array.from({ length: 18 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`w-1 rounded-full bg-fuchsia-300 transition-all duration-300 ${
-                      status === "active"
-                        ? "h-8 animate-pulse"
-                        : status === "connecting"
-                        ? "h-4 animate-pulse"
-                        : "h-1 bg-slate-500"
-                    }`}
-                    style={{ animationDelay: `${i * 40}ms` }}
-                  />
-                ))}
-              </div>
-
-              {/* Buttons + status */}
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-1 flex-col gap-3">
                 <div className="flex gap-3">
                   <button
                     onClick={startTest}
-                    disabled={status !== "idle"}
-                    className="px-6 py-2.5 rounded-full bg-pink-500 text-sm font-semibold shadow-lg shadow-pink-700/40 hover:bg-pink-600 disabled:opacity-40"
+                    disabled={!isIdle}
+                    className="flex-1 rounded-full bg-pink-600 px-6 py-3 text-sm font-semibold shadow-lg shadow-pink-500/40 transition hover:bg-pink-500 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Start test
+                    {isConnecting ? "Connecting..." : "Start test"}
                   </button>
-                  <button
-                    onClick={stopTest}
-                    disabled={status === "idle"}
-                    className="px-6 py-2.5 rounded-full bg-white/10 text-sm font-semibold text-slate-100 border border-white/20 hover:bg-white/15 disabled:opacity-40"
-                  >
-                    Stop
-                  </button>
+
+                    <button
+                      onClick={stopTest}
+                      disabled={!isActive}
+                      className="flex-1 rounded-full bg-slate-700/70 px-6 py-3 text-sm font-semibold text-slate-200 shadow transition hover:bg-slate-600/80 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Stop (get report)
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-3 text-xs text-slate-200/90">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      status === "active"
-                        ? "bg-emerald-400 animate-pulse"
-                        : status === "connecting"
-                        ? "bg-amber-300 animate-pulse"
-                        : "bg-slate-400"
-                    }`}
-                  />
-                  <span>{statusLabel}</span>
-                  <span className="w-px h-4 bg-white/20" />
-                  <span>Timer: {formattedTime}</span>
+                <div className="flex items-center justify-between text-xs text-slate-300/80">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        isActive
+                          ? "bg-emerald-400"
+                          : isEvaluating
+                          ? "bg-amber-400"
+                          : "bg-slate-500"
+                      }`}
+                    />
+                    <span>
+                      {isActive && "Status: Live"}
+                      {isEvaluating && "Status: Generating report..."}
+                      {isIdle && "Status: Ready"}
+                      {isConnecting && "Status: Connecting..."}
+                    </span>
+                  </div>
+                  <div>Timer: {minutes}:{seconds}</div>
                 </div>
               </div>
             </div>
 
-            {/* Right: session info */}
-            <div className="rounded-2xl bg-white/5 border border-white/15 p-4 md:p-5 space-y-3 text-sm">
-              <h2 className="text-sm font-semibold text-fuchsia-200">
+            <audio ref={audioRef} autoPlay />
+
+            {/* LOG COMPATTO */}
+            <div className="mt-4 h-56 w-full overflow-auto rounded-xl border border-white/10 bg-black/60 p-3 text-[11px] font-mono text-slate-200">
+              {log.map((l, i) => (
+                <div key={i}>{l}</div>
+              ))}
+            </div>
+
+            <button
+              onClick={hardCloseSession}
+              className="mt-2 self-end text-[11px] text-slate-400 underline-offset-2 hover:underline"
+            >
+              Force close session
+            </button>
+          </div>
+
+          {/* COLONNA DESTRA: pannello info + report */}
+          <aside className="flex flex-col gap-4">
+            <div className="rounded-2xl border border-white/10 bg-black/70 p-5 text-xs text-slate-100 shadow-xl">
+              <h2 className="mb-2 text-sm font-semibold text-pink-300">
                 Session insights (live)
               </h2>
-              <div className="space-y-1 text-xs text-slate-100/90">
-                <p>
-                  <span className="font-semibold">Last event:</span>{" "}
-                  {lastEventType ?? "—"}
-                </p>
-                <p>
-                  <span className="font-semibold">Events received:</span>{" "}
-                  {eventCount}
-                </p>
-                <p>
-                  <span className="font-semibold">Report status:</span>{" "}
-                  {log.some((l) =>
-                    l.toLowerCase().includes("report saved to airtable")
-                  )
-                    ? "✅ Saved"
-                    : "Waiting for AI evaluation…"}
-                </p>
-              </div>
+              <p className="mb-1">
+                <span className="text-slate-400">Status:</span>{" "}
+                {isActive && "Speaking exam in progress"}
+                {isEvaluating && "Waiting for AI evaluation"}
+                {isIdle && "Idle"}
+                {isConnecting && "Connecting"}
+              </p>
+              <p className="mb-4">
+                <span className="text-slate-400">Events logged:</span>{" "}
+                {log.length}
+              </p>
 
-              <div className="mt-3 border-t border-white/10 pt-3 text-xs text-slate-200/90 space-y-1">
-                <p className="font-semibold text-slate-50">
-                  Tips for best results
-                </p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Use headphones and a good microphone.</li>
-                  <li>Answer in full sentences, not just single words.</li>
-                  <li>
-                    Imagine you are in an official British Institutes speaking
-                    exam.
-                  </li>
-                </ul>
-              </div>
+              <h3 className="mb-1 text-xs font-semibold text-slate-300">
+                Tips for best results
+              </h3>
+              <ul className="space-y-1 text-[11px] text-slate-300">
+                <li>• Use headphones and a good microphone.</li>
+                <li>
+                  • Answer in full sentences, not just single words.
+                </li>
+                <li>
+                  • Imagine you are in an official British Institutes speaking
+                  exam.
+                </li>
+              </ul>
             </div>
-          </div>
 
-          {/* Audio hidden */}
-          <audio ref={audioRef} autoPlay />
+            {/* REPORT FINALE */}
+            <div className="rounded-2xl border border-pink-500/30 bg-black/80 p-5 text-xs text-slate-100 shadow-xl">
+              <h2 className="mb-2 text-sm font-semibold text-pink-300">
+                Final speaking report
+              </h2>
 
-          {/* Log */}
-          <div className="mt-4 rounded-2xl border border-white/15 bg-black/55 backdrop-blur-xl p-4 h-60 overflow-auto text-[11px] font-mono text-slate-100 shadow-inner shadow-black/60">
-            {log.length === 0 ? (
-              <div className="text-slate-400/80">
-                Logs will appear here when the test starts (connection status
-                and key events from LUMA).
-              </div>
-            ) : (
-              log.map((l, i) => <div key={i}>{l}</div>)
-            )}
-          </div>
-        </div>
+              {!report && (
+                <p className="text-[11px] text-slate-400">
+                  After you press <span className="font-semibold">Stop</span>,
+                  LUMA will generate here a structured written evaluation of
+                  your speaking performance.
+                </p>
+              )}
+
+              {report && (
+                <div className="space-y-3 text-[11px]">
+                  {report.parsed ? (
+                    <>
+                      {report.parsed.cefr_level && (
+                        <p>
+                          <span className="text-slate-400">CEFR level:</span>{" "}
+                          <span className="font-semibold">
+                            {report.parsed.cefr_level}
+                          </span>
+                        </p>
+                      )}
+                      {report.parsed.accent && (
+                        <p>
+                          <span className="text-slate-400">
+                            Detected accent:
+                          </span>{" "}
+                          {report.parsed.accent}
+                        </p>
+                      )}
+                      {report.parsed.strengths && (
+                        <div>
+                          <span className="text-slate-400">
+                            Main strengths:
+                          </span>
+                          <ul className="ml-4 list-disc">
+                            {report.parsed.strengths.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {report.parsed.weaknesses && (
+                        <div>
+                          <span className="text-slate-400">
+                            Areas to improve:
+                          </span>
+                          <ul className="ml-4 list-disc">
+                            {report.parsed.weaknesses.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {report.parsed.recommendations && (
+                        <div>
+                          <span className="text-slate-400">
+                            Recommendations:
+                          </span>
+                          <ul className="ml-4 list-disc">
+                            {report.parsed.recommendations.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {report.parsed.overall_comment && (
+                        <p>
+                          <span className="text-slate-400">
+                            Examiner comment:
+                          </span>{" "}
+                          {report.parsed.overall_comment}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-slate-300">
+                        LUMA generated the following evaluation:
+                      </p>
+                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-black/70 p-2 font-mono text-[10px]">
+                        {report.rawText}
+                      </pre>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </aside>
+        </section>
       </div>
     </main>
   );
