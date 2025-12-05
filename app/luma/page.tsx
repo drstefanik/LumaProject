@@ -23,28 +23,27 @@ export default function LumaSpeakingTestPage() {
   const [timer, setTimer] = useState<number>(0);
   const [report, setReport] = useState<ReportState | null>(null);
 
-  // ---- candidate registration form ----
-  const [firstName, setFirstName] = useState<string>("");
-  const [lastName, setLastName] = useState<string>("");
-  const [email, setEmail] = useState<string>("");
-  const [birthDate, setBirthDate] = useState<string>("");
-  const [nativeLanguage, setNativeLanguage] = useState<string>("");
-  const [country, setCountry] = useState<string>("");
-  const [testPurpose, setTestPurpose] = useState<string>("");
-  const [privacyAccepted, setPrivacyAccepted] = useState<boolean>(false);
+  // candidate form
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [nativeLanguage, setNativeLanguage] = useState("");
+  const [country, setCountry] = useState("");
+  const [testPurpose, setTestPurpose] = useState("");
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // buffer for the streamed report text
   const reportBufferRef = useRef<string>("");
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
 
   function appendLog(msg: string) {
-    setLog((l) => [...l, `${new Date().toLocaleTimeString()} – ${msg}`]);
+    setLog((prev) => [...prev, `${new Date().toLocaleTimeString()} – ${msg}`]);
   }
 
   function startTimer() {
@@ -69,15 +68,14 @@ export default function LumaSpeakingTestPage() {
 
   async function startTest() {
     try {
-      // form validation
       if (!candidateFullName) {
-        alert("Please enter candidate first name and last name.");
-        appendLog("Please enter candidate first name and last name.");
+        alert("Please enter candidate first and last name.");
+        appendLog("Missing candidate name.");
         return;
       }
       if (!email.trim()) {
         alert("Please enter candidate email.");
-        appendLog("Please enter candidate email.");
+        appendLog("Missing candidate email.");
         return;
       }
       if (!privacyAccepted) {
@@ -103,17 +101,17 @@ export default function LumaSpeakingTestPage() {
         return;
       }
 
-      const { client_secret } = await res.json();
-      if (!client_secret) {
+      const json = await res.json();
+      const clientSecret = json.client_secret as string | undefined;
+
+      if (!clientSecret) {
         appendLog("No client secret received.");
         setStatus("idle");
         return;
       }
 
       appendLog("Acquiring microphone...");
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const pc = new RTCPeerConnection();
       peerRef.current = pc;
@@ -127,9 +125,7 @@ export default function LumaSpeakingTestPage() {
         audioRef.current.srcObject = event.streams[0];
         audioRef.current
           .play()
-          .then(() => {
-            appendLog("Playing audio from LUMA.");
-          })
+          .then(() => appendLog("Playing audio from LUMA."))
           .catch(() => {});
       };
 
@@ -141,12 +137,7 @@ export default function LumaSpeakingTestPage() {
         setStatus("active");
         startTimer();
 
-        const sessionUpdate = {
-          type: "session.update",
-          session: {
-            type: "realtime",
-            model: "gpt-realtime",
-            instructions: `
+        const instructions = `
 You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI.
 
 The candidate's name is "${candidateFullName}".
@@ -159,30 +150,28 @@ ROLE
 - Ask questions, keep the conversation natural, and listen carefully.
 - Do NOT give the final evaluation or explicit score during the conversation.
 
-STRICT LANGUAGE POLICY (NON-NEGOTIABLE)
+LANGUAGE
 - You MUST ALWAYS speak ONLY in English.
 - You MUST NEVER speak Italian or any other language.
-- If the candidate speaks in Italian or any other non-English language, you MUST:
-  • continue speaking only in English;
-  • immediately remind them with a short sentence such as:
-    "Please answer in English. This speaking test must be completed in English only."
-    "I can only conduct this test in English. Please continue in English, even if it is not perfect."
+- If the candidate uses another language, say briefly in English:
+  "Please answer in English. This speaking test must be completed in English only."
 
-TONE & INTERACTION
-- Speak clearly, politely, and professionally.
-- Ask one question at a time and wait for the candidate's answer.
-- Keep your responses short and focused.
-- If you do not understand the candidate, say:
-  "I'm sorry, could you repeat that in English, please?"
-- If the candidate is silent for a while, say:
-  "Take your time. Please answer in English when you are ready."
+INTERACTION
+- Ask one question at a time and wait.
+- If you do not understand, say: "I'm sorry, could you repeat that in English, please?"
+- If the candidate is silent, say: "Take your time. Please answer in English when you are ready."
 
-EVALUATION & REPORT
-- During the conversation, do NOT state or imply any score, level, or CEFR band.
-- Do NOT mention JSON, internal reasoning, or technical details.
-- Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'.
-- Only then produce a structured written evaluation in JSON, but NEVER read it aloud or reveal it to the candidate.
-`,
+EVALUATION
+- Do not mention CEFR levels, scores or bands during the conversation.
+- Wait for a "response.create" event with metadata.purpose = "speaking_report" before you generate a JSON report.
+        `.trim();
+
+        const sessionUpdate = {
+          type: "session.update",
+          session: {
+            type: "realtime",
+            model: "gpt-realtime",
+            instructions,
           },
         };
 
@@ -206,20 +195,19 @@ EVALUATION & REPORT
 
           if (msg.type === "response.output_audio_transcript.done") {
             const text =
-              msg.output_audio_transcript?.join("") ??
-              msg.output_text ??
+              (msg.output_audio_transcript &&
+                msg.output_audio_transcript.join("")) ||
+              msg.output_text ||
               "";
-            if (text) {
-              appendLog(`LUMA: ${text}`);
-            }
+            if (text) appendLog(`LUMA: ${text}`);
             return;
           }
 
-          if (
-            (msg.type === "response.output_text.delta" ||
-              msg.type === "response.output_text.done") &&
-            msg.response?.metadata?.purpose === "speaking_report"
-          ) {
+          const isReport =
+            msg.response?.metadata?.purpose === "speaking_report" ||
+            msg.metadata?.purpose === "speaking_report";
+
+          if (isReport) {
             if (msg.type === "response.output_text.delta") {
               const deltaText = msg.delta?.text ?? "";
               reportBufferRef.current += deltaText;
@@ -227,19 +215,21 @@ EVALUATION & REPORT
             }
 
             if (msg.type === "response.output_text.done") {
-              const fullText =
-                reportBufferRef.current.trim() ||
-                (Array.isArray(msg.output_text)
-                  ? msg.output_text.join("")
-                  : msg.output_text || "").toString().trim() ||
-                (Array.isArray(msg.response?.output_text)
-                  ? msg.response.output_text.join("")
-                  : msg.response?.output_text || "").toString().trim();
+              let fullText = reportBufferRef.current.trim();
 
               if (!fullText) {
-                appendLog(
-                  "No written evaluation received from LUMA. Please try stopping the test again."
-                );
+                const fromOutput = Array.isArray(msg.output_text)
+                  ? msg.output_text.join("")
+                  : msg.output_text || "";
+                const fromResponse = Array.isArray(msg.response?.output_text)
+                  ? msg.response.output_text.join("")
+                  : msg.response?.output_text || "";
+
+                fullText = (fromOutput || fromResponse || "").toString().trim();
+              }
+
+              if (!fullText) {
+                appendLog("No written evaluation received from LUMA.");
                 setStatus("active");
                 return;
               }
@@ -258,19 +248,11 @@ EVALUATION & REPORT
             appendLog("Evaluation response completed.");
           } else if (msg.type === "error") {
             appendLog("ERROR from Realtime API: " + msg.error?.message);
-          } else if (msg.type?.startsWith("output_audio_buffer.")) {
-            appendLog(
-              "Event: " + msg.type.replace("output_audio_buffer.", "")
-            );
-          } else if (msg.type?.startsWith("input_audio_buffer.")) {
-            appendLog(
-              "Event: " + msg.type.replace("input_audio_buffer.", "")
-            );
           } else if (msg.type) {
             appendLog("Event: " + msg.type);
           }
         } catch {
-          // ignore non-JSON messages
+          // ignore non-JSON message
         }
       };
 
@@ -282,7 +264,7 @@ EVALUATION & REPORT
       const callRes = await fetch("https://api.openai.com/v1/realtime", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${client_secret}`,
+          Authorization: `Bearer ${clientSecret}`,
           "Content-Type": "application/sdp",
           "OpenAI-Beta": "realtime=v1",
         },
@@ -297,10 +279,7 @@ EVALUATION & REPORT
       }
 
       const answerSdp = await callRes.text();
-      await pc.setRemoteDescription({
-        type: "answer",
-        sdp: answerSdp,
-      });
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
       appendLog("LUMA connected. Speak naturally in English.");
     } catch (err: any) {
@@ -319,26 +298,20 @@ EVALUATION & REPORT
     }
 
     setStatus("evaluating");
-    appendLog(
-      "Requesting final written evaluation from LUMA (no spoken feedback)..."
-    );
+    appendLog("Requesting final written evaluation from LUMA...");
     reportBufferRef.current = "";
+
+    const instructions =
+      "Now, as LUMA, produce ONLY a structured JSON evaluation of the candidate's English speaking performance. " +
+      "Do NOT speak this aloud, only return JSON. " +
+      "Use this exact schema: " +
+      '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
 
     const event = {
       type: "response.create",
       response: {
         modalities: ["text"],
-        instructions:
-          "Now, as LUMA, produce ONLY a structured JSON evaluation of the candidate's English speaking performance. " +
-          "Do NOT speak this aloud, only return JSON. " +
-          "Use this exact schema: " +
-          '{ "candidate_name": string | null, ' +
-          '"cefr_level": string, ' +
-          '"accent": string, ' +
-          '"strengths": string[], ' +
-          '"weaknesses": string[], ' +
-          '"recommendations": string[], ' +
-          '"overall_comment": string }.',
+        instructions,
         metadata: {
           purpose: "speaking_report",
         },
@@ -350,19 +323,23 @@ EVALUATION & REPORT
 
   async function processFinalReport(text: string) {
     const trimmed = text.trim();
-    let parsed: ReportState["parsed"] | undefined = undefined;
+    let parsed: ReportState["parsed"] | undefined;
 
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      // if the payload is not valid JSON, keep raw text
+      parsed = undefined;
     }
+
+    setReport({
+      rawText: trimmed,
+      parsed,
+    });
 
     const payload = {
       created_at: new Date().toISOString(),
       rawText: trimmed,
       parsed,
-
       candidate_name: candidateFullName || null,
       candidate_first_name: firstName.trim() || null,
       candidate_last_name: lastName.trim() || null,
@@ -373,11 +350,6 @@ EVALUATION & REPORT
       test_purpose: testPurpose || null,
       privacy_accepted: privacyAccepted,
     };
-
-    setReport({
-      rawText: trimmed,
-      parsed,
-    });
 
     appendLog("Sending report to backend (Airtable)...");
     try {
@@ -418,6 +390,7 @@ EVALUATION & REPORT
 
   const minutes = String(Math.floor(timer / 60)).padStart(2, "0");
   const seconds = String(timer % 60).padStart(2, "0");
+
   const isIdle = status === "idle";
   const isConnecting = status === "connecting";
   const isActive = status === "active";
@@ -425,6 +398,7 @@ EVALUATION & REPORT
 
   return (
     <main className="relative isolate min-h-screen overflow-hidden bg-slate-950 text-slate-50">
+      {/* background */}
       <div className="pointer-events-none absolute inset-0 opacity-70">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" />
         <div className="absolute -left-16 -top-24 h-72 w-72 rounded-full bg-sky-500/30 blur-3xl" />
@@ -434,12 +408,14 @@ EVALUATION & REPORT
 
       <div className="relative mx-auto max-w-6xl px-6 py-12 space-y-8">
         <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-sky-100 ring-1 ring-white/15">
-          <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+          <span className="h-2 w-2 rounded-full bg-emerald-400" />
           British Institutes · Speaking Examiner
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          {/* left column */}
           <div className="flex flex-col gap-6">
+            {/* header + form */}
             <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/50 backdrop-blur">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-3">
@@ -447,8 +423,8 @@ EVALUATION & REPORT
                     LUMA Speaking Test
                   </h1>
                   <p className="max-w-2xl text-sm leading-relaxed text-slate-200">
-                    Register the candidate, start the live conversation, and
-                    let LUMA score pronunciation, rhythm, and coherence in real
+                    Register the candidate, start the live conversation, and let
+                    LUMA score pronunciation, rhythm, and coherence in real
                     time.
                   </p>
                   <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
@@ -468,47 +444,48 @@ EVALUATION & REPORT
                   </div>
                 </div>
 
-                {/* Siri-style listening field */}
-<div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-2 shadow-lg shadow-indigo-900/40">
-  <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-b from-slate-950 via-slate-950 to-black">
-    {/* cerchio centrale tipo Siri */}
-    <div className="relative h-20 w-20">
-      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 opacity-60 blur-md" />
-      <div className="absolute inset-0 rounded-full border border-sky-300/40 animate-ping opacity-60" />
-      <div className="absolute inset-[6px] rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-400 to-purple-400 shadow-[0_0_35px_rgba(244,114,182,0.9)]" />
-    </div>
+                {/* SIRI-LIKE FIELD */}
+                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-2 shadow-lg shadow-indigo-900/40">
+                  <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-b from-slate-950 via-slate-950 to-black">
+                    {/* orb */}
+                    <div className="relative h-20 w-20">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 opacity-60 blur-md" />
+                      <div className="absolute inset-0 rounded-full border border-sky-300/40 animate-ping opacity-60" />
+                      <div className="absolute inset-[6px] rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-400 to-purple-400 shadow-[0_0_35px_rgba(244,114,182,0.9)]" />
+                    </div>
 
-    {/* barrette audio tipo equalizer */}
-    <div className="absolute bottom-4 flex gap-1.5">
-      <span
-        className="h-3 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
-        style={{ animationDuration: "1.1s" }}
-      />
-      <span
-        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
-        style={{ animationDuration: "0.9s", animationDelay: "0.1s" }}
-      />
-      <span
-        className="h-9 w-1.5 rounded-full bg-purple-300/90 animate-pulse"
-        style={{ animationDuration: "1.2s", animationDelay: "0.2s" }}
-      />
-      <span
-        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
-        style={{ animationDuration: "0.95s", animationDelay: "0.15s" }}
-      />
-      <span
-        className="h-4 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
-        style={{ animationDuration: "1.05s", animationDelay: "0.05s" }}
-      />
-    </div>
-  </div>
+                    {/* bars */}
+                    <div className="absolute bottom-4 flex gap-1.5">
+                      <span
+                        className="h-3 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
+                        style={{ animationDuration: "1.1s" }}
+                      />
+                      <span
+                        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
+                        style={{ animationDuration: "0.9s", animationDelay: "0.1s" }}
+                      />
+                      <span
+                        className="h-9 w-1.5 rounded-full bg-purple-300/90 animate-pulse"
+                        style={{ animationDuration: "1.2s", animationDelay: "0.2s" }}
+                      />
+                      <span
+                        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
+                        style={{ animationDuration: "0.95s", animationDelay: "0.15s" }}
+                      />
+                      <span
+                        className="h-4 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
+                        style={{ animationDuration: "1.05s", animationDelay: "0.05s" }}
+                      />
+                    </div>
+                  </div>
 
-  <p className="relative mt-2 text-[11px] text-slate-200">
-    LUMA listening field
-  </p>
-</div>
+                  <p className="relative mt-2 text-[11px] text-slate-200">
+                    LUMA listening field
+                  </p>
+                </div>
+              </div>
 
-
+              {/* form fields */}
               <div className="mt-6 grid gap-3 text-xs text-slate-100 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
@@ -539,12 +516,12 @@ EVALUATION & REPORT
                     Email *
                   </label>
                   <input
+                    type="email"
                     className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     placeholder="candidate@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={!isIdle}
-                    type="email"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -622,6 +599,7 @@ EVALUATION & REPORT
               </div>
             </section>
 
+            {/* controls */}
             <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/50 backdrop-blur">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
                 <div className="relative flex h-28 w-28 items-center justify-center self-start lg:self-center">
@@ -679,9 +657,8 @@ EVALUATION & REPORT
             </section>
           </div>
 
+          {/* right column */}
           <aside className="flex flex-col gap-6">
-            {/* Rimossa la card "Live demo" */}
-
             <div className="rounded-3xl border border-white/15 bg-white/5 p-5 shadow-2xl shadow-indigo-900/40 backdrop-blur">
               <h3 className="text-sm font-semibold text-sky-200">Candidate</h3>
               <p className="mt-1 text-base font-semibold text-white">
@@ -711,7 +688,7 @@ EVALUATION & REPORT
                 <p className="text-[12px] text-slate-300">
                   After you press{" "}
                   <span className="font-semibold text-white">Stop</span>, LUMA
-                  will generate here a structured written evaluation of the
+                  will generate a structured written evaluation of the
                   candidate&apos;s speaking performance.
                 </p>
               )}
