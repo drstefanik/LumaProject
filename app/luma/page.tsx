@@ -23,6 +23,10 @@ export default function LumaSpeakingTestPage() {
   const [timer, setTimer] = useState<number>(0);
   const [report, setReport] = useState<ReportState | null>(null);
 
+  // dati candidato
+  const [candidateName, setCandidateName] = useState<string>("");
+  const [candidateEmail, setCandidateEmail] = useState<string>("");
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
@@ -58,6 +62,12 @@ export default function LumaSpeakingTestPage() {
 
   async function startTest() {
     try {
+      if (!candidateName.trim()) {
+        appendLog("Please enter the candidate name before starting.");
+        alert("Please enter the candidate name before starting the test.");
+        return;
+      }
+
       setReport(null);
       reportBufferRef.current = "";
       setStatus("connecting");
@@ -66,7 +76,7 @@ export default function LumaSpeakingTestPage() {
       const res = await fetch("/api/voice/client-secret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({})
+        body: JSON.stringify({}),
       });
 
       if (!res.ok) {
@@ -84,7 +94,7 @@ export default function LumaSpeakingTestPage() {
 
       appendLog("Acquiring microphone...");
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true
+        audio: true,
       });
 
       const pc = new RTCPeerConnection();
@@ -113,28 +123,24 @@ export default function LumaSpeakingTestPage() {
         setStatus("active");
         startTimer();
 
-        // Configuriamo la sessione: LUMA è un examiner, niente valutazione finale parlata
-const sessionUpdate = {
-  type: "session.update",
-  session: {
-    // 👇 OBBLIGATORI
-    type: "realtime",
-    model: "gpt-realtime", // oppure lo stesso modello che usi nel backend
-
-    // 👇 il resto come avevi già
-    instructions:
-      "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI. " +
-      "Conduct a realistic English speaking exam (placement / proficiency). Ask questions, keep the conversation natural, " +
-      "and do NOT give the final evaluation or explicit score during the conversation. " +
-      "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
-      "Only then you must produce a structured written evaluation in JSON, without speaking it aloud.",
-    input_audio_format: "webrtc",
-    output_audio_format: "webrtc",
-    // turn detection lato server
-    turn_detection: { type: "server_vad" }
-  }
-};
-
+        // Configuriamo la sessione: LUMA è un examiner
+        const sessionUpdate = {
+          type: "session.update",
+          session: {
+            type: "realtime",
+            model: "gpt-realtime",
+            instructions:
+              "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI. " +
+              `The candidate's name is "${candidateName.trim()}". Address them by their first name. ` +
+              "Conduct a realistic English speaking exam (placement / proficiency). Ask questions, keep the conversation natural, " +
+              "and do NOT give the final evaluation or explicit score during the conversation. " +
+              "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
+              "Only then you must produce a structured written evaluation in JSON, without speaking it aloud.",
+            input_audio_format: "webrtc",
+            output_audio_format: "webrtc",
+            turn_detection: { type: "server_vad" },
+          },
+        };
 
         dc.send(JSON.stringify(sessionUpdate));
         appendLog("Session configured. Start speaking in English!");
@@ -152,11 +158,10 @@ const sessionUpdate = {
             msg.type === "input_audio_buffer.speech_stopped" ||
             msg.type === "output_audio_buffer.delta"
           ) {
-            // non logghiamo questi eventi
             return;
           }
 
-          // 2) Transcript comprensibile (se vogliamo visualizzarlo)
+          // 2) Transcript comprensibile (se vogliamo visualizzarlo nei log)
           if (msg.type === "response.output_audio_transcript.done") {
             const text =
               msg.output_audio_transcript?.join("") ??
@@ -198,15 +203,18 @@ const sessionUpdate = {
           } else if (msg.type === "error") {
             appendLog("ERROR from Realtime API: " + msg.error?.message);
           } else if (msg.type?.startsWith("output_audio_buffer.")) {
-            appendLog("Event: " + msg.type.replace("output_audio_buffer.", ""));
+            appendLog(
+              "Event: " + msg.type.replace("output_audio_buffer.", "")
+            );
           } else if (msg.type?.startsWith("input_audio_buffer.")) {
-            appendLog("Event: " + msg.type.replace("input_audio_buffer.", ""));
+            appendLog(
+              "Event: " + msg.type.replace("input_audio_buffer.", "")
+            );
           } else if (msg.type) {
-            // log minimalista
             appendLog("Event: " + msg.type);
           }
         } catch {
-          // messaggi non JSON (rari)
+          // messaggi non JSON: ignoriamo
         }
       };
 
@@ -221,9 +229,9 @@ const sessionUpdate = {
           method: "POST",
           headers: {
             Authorization: `Bearer ${client_secret}`,
-            "Content-Type": "application/sdp"
+            "Content-Type": "application/sdp",
           },
-          body: offer.sdp ?? ""
+          body: offer.sdp ?? "",
         }
       );
 
@@ -237,7 +245,7 @@ const sessionUpdate = {
       const answerSdp = await callRes.text();
       await pc.setRemoteDescription({
         type: "answer",
-        sdp: answerSdp
+        sdp: answerSdp,
       });
 
       appendLog("LUMA connected. Speak naturally in English.");
@@ -266,7 +274,7 @@ const sessionUpdate = {
     const event = {
       type: "response.create",
       response: {
-        modalities: ["text"], // niente audio qui
+        modalities: ["text"],
         instructions:
           "Now, as LUMA, produce ONLY a structured JSON evaluation of the candidate's English speaking performance. " +
           "Do NOT speak this aloud, only return JSON. " +
@@ -279,9 +287,9 @@ const sessionUpdate = {
           "\"recommendations\": string[], " +
           "\"overall_comment\": string }.",
         metadata: {
-          purpose: "speaking_report"
-        }
-      }
+          purpose: "speaking_report",
+        },
+      },
     };
 
     dc.send(JSON.stringify(event));
@@ -292,21 +300,22 @@ const sessionUpdate = {
     let parsed: ReportState["parsed"] | undefined = undefined;
 
     try {
-      // Proviamo a parsare come JSON
       parsed = JSON.parse(trimmed);
     } catch {
-      // Se non è JSON, lo salviamo comunque come testo grezzo
+      // non è JSON valido: lo lasciamo come testo grezzo
     }
 
     const payload = {
       created_at: new Date().toISOString(),
       rawText: trimmed,
-      parsed
+      parsed,
+      candidate_name: candidateName.trim() || null,
+      candidate_email: candidateEmail.trim() || null,
     };
 
     setReport({
       rawText: trimmed,
-      parsed
+      parsed,
     });
 
     appendLog("Sending report to backend (Airtable)...");
@@ -314,7 +323,7 @@ const sessionUpdate = {
       const resp = await fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (!resp.ok) {
@@ -328,7 +337,6 @@ const sessionUpdate = {
         "Network error while saving report: " + (e?.message || "unknown")
       );
     } finally {
-      // Non chiudiamo subito la call: lasciamo chiudere dall'utente
       setStatus("active");
     }
   }
@@ -337,7 +345,6 @@ const sessionUpdate = {
     appendLog("Stop pressed. Asking LUMA for final evaluation...");
     stopTimer();
     requestFinalEvaluation();
-    // NON chiudiamo ancora la peer connection: aspettiamo il report
   }
 
   function hardCloseSession() {
@@ -380,7 +387,7 @@ const sessionUpdate = {
         </div>
 
         <section className="mt-2 grid gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          {/* COLONNA SINISTRA: microfono + controlli */}
+          {/* COLONNA SINISTRA: form + microfono + log */}
           <div className="flex flex-col gap-6">
             <header className="space-y-3">
               <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">
@@ -392,12 +399,39 @@ const sessionUpdate = {
                 a real exam. At the end, LUMA will generate a structured report
                 on your performance.
               </p>
+
+              {/* DATI CANDIDATO */}
+              <div className="mt-4 grid gap-3 text-xs text-slate-200 md:grid-cols-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Candidate name <span className="text-pink-400">*</span>
+                  </label>
+                  <input
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    placeholder="e.g. John Smith"
+                    value={candidateName}
+                    onChange={(e) => setCandidateName(e.target.value)}
+                    disabled={!isIdle}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Email (optional)
+                  </label>
+                  <input
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    placeholder="candidate@example.com"
+                    value={candidateEmail}
+                    onChange={(e) => setCandidateEmail(e.target.value)}
+                    disabled={!isIdle}
+                  />
+                </div>
+              </div>
             </header>
 
             {/* microfono grande */}
             <div className="flex items-center gap-8">
               <div className="relative flex h-40 w-40 items-center justify-center">
-                {/* cerchi animati */}
                 <div className="absolute h-40 w-40 rounded-full bg-pink-500/20 blur-xl" />
                 <div className="absolute h-32 w-32 animate-pulse rounded-full border border-pink-400/60" />
                 <div className="absolute h-28 w-28 rounded-full bg-gradient-to-b from-pink-500 to-fuchsia-600 shadow-[0_0_30px_rgba(236,72,153,0.9)]" />
@@ -414,13 +448,13 @@ const sessionUpdate = {
                     {isConnecting ? "Connecting..." : "Start test"}
                   </button>
 
-                    <button
-                      onClick={stopTest}
-                      disabled={!isActive}
-                      className="flex-1 rounded-full bg-slate-700/70 px-6 py-3 text-sm font-semibold text-slate-200 shadow transition hover:bg-slate-600/80 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Stop (get report)
-                    </button>
+                  <button
+                    onClick={stopTest}
+                    disabled={!isActive}
+                    className="flex-1 rounded-full bg-slate-700/70 px-6 py-3 text-sm font-semibold text-slate-200 shadow transition hover:bg-slate-600/80 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Stop (get report)
+                  </button>
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-300/80">
@@ -441,7 +475,9 @@ const sessionUpdate = {
                       {isConnecting && "Status: Connecting..."}
                     </span>
                   </div>
-                  <div>Timer: {minutes}:{seconds}</div>
+                  <div>
+                    Timer: {minutes}:{seconds}
+                  </div>
                 </div>
               </div>
             </div>
@@ -476,9 +512,20 @@ const sessionUpdate = {
                 {isIdle && "Idle"}
                 {isConnecting && "Connecting"}
               </p>
-              <p className="mb-4">
+              <p className="mb-1">
                 <span className="text-slate-400">Events logged:</span>{" "}
                 {log.length}
+              </p>
+              <p className="mb-4">
+                <span className="text-slate-400">Candidate:</span>{" "}
+                {report?.parsed?.candidate_name ||
+                  candidateName ||
+                  "—"}{" "}
+                {candidateEmail && (
+                  <span className="text-slate-400">
+                    ({candidateEmail})
+                  </span>
+                )}
               </p>
 
               <h3 className="mb-1 text-xs font-semibold text-slate-300">
@@ -486,12 +533,10 @@ const sessionUpdate = {
               </h3>
               <ul className="space-y-1 text-[11px] text-slate-300">
                 <li>• Use headphones and a good microphone.</li>
+                <li>• Answer in full sentences, not just single words.</li>
                 <li>
-                  • Answer in full sentences, not just single words.
-                </li>
-                <li>
-                  • Imagine you are in an official British Institutes speaking
-                  exam.
+                  • Imagine you are in an official British Institutes
+                  speaking exam.
                 </li>
               </ul>
             </div>
@@ -504,9 +549,10 @@ const sessionUpdate = {
 
               {!report && (
                 <p className="text-[11px] text-slate-400">
-                  After you press <span className="font-semibold">Stop</span>,
-                  LUMA will generate here a structured written evaluation of
-                  your speaking performance.
+                  After you press{" "}
+                  <span className="font-semibold">Stop</span>, LUMA will
+                  generate here a structured written evaluation of your
+                  speaking performance.
                 </p>
               )}
 
@@ -516,7 +562,9 @@ const sessionUpdate = {
                     <>
                       {report.parsed.cefr_level && (
                         <p>
-                          <span className="text-slate-400">CEFR level:</span>{" "}
+                          <span className="text-slate-400">
+                            CEFR level:
+                          </span>{" "}
                           <span className="font-semibold">
                             {report.parsed.cefr_level}
                           </span>
@@ -560,9 +608,11 @@ const sessionUpdate = {
                             Recommendations:
                           </span>
                           <ul className="ml-4 list-disc">
-                            {report.parsed.recommendations.map((s, i) => (
-                              <li key={i}>{s}</li>
-                            ))}
+                            {report.parsed.recommendations.map(
+                              (s, i) => (
+                                <li key={i}>{s}</li>
+                              )
+                            )}
                           </ul>
                         </div>
                       )}
