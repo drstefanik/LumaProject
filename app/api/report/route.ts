@@ -16,29 +16,59 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-
     const parsed = body.parsed || {};
     const createdAt: string =
       body.created_at || new Date().toISOString();
 
+    // ---- dati registrazione candidato ----
+    const firstName: string =
+      body.candidate_first_name ||
+      parsed.candidate_first_name ||
+      "";
+    const lastName: string =
+      body.candidate_last_name ||
+      parsed.candidate_last_name ||
+      "";
     const candidateName: string =
       body.candidate_name ||
-      body.candidateName ||
       parsed.candidate_name ||
-      parsed.name ||
-      "";
+      `${firstName} ${lastName}`.trim();
 
     const candidateEmail: string =
       body.candidate_email ||
-      body.candidateEmail ||
       parsed.candidate_email ||
       "";
 
-    // Mappiamo il JSON di LUMA + dati form sui campi Airtable
+    const birthDate: string =
+      body.birth_date || parsed.birth_date || "";
+
+    const nativeLanguage: string =
+      body.native_language || parsed.native_language || "";
+
+    const country: string =
+      body.country || parsed.country || "";
+
+    const testPurpose: string =
+      body.test_purpose || parsed.test_purpose || "";
+
+    const privacyAccepted: boolean =
+      !!body.privacy_accepted || !!parsed.privacy_accepted;
+
+    // ---- mappatura campi Airtable ----
     const fields: Record<string, any> = {
-      CandidateId: parsed.candidate_id || "",
+      // anagrafica candidato
+      FirstName: firstName,
+      LastName: lastName,
       Name: candidateName,
       CandidateEmail: candidateEmail,
+      BirthDate: birthDate || null,
+      NativeLanguage: nativeLanguage,
+      Country: country,
+      TestPurpose: testPurpose,
+      PrivacyAccepted: privacyAccepted,
+
+      // info sessione
+      CandidateId: parsed.candidate_id || "",
       DateTime: createdAt,
       Status: parsed.status || "Completed",
       Selected: parsed.selected ?? false,
@@ -48,8 +78,10 @@ export async function POST(req: NextRequest) {
         parsed.accent_comment ||
         parsed.overall_comment ||
         "",
+
       CEFR_Global:
         parsed.cefr_global || parsed.cefr_level || parsed.level || "",
+
       Score_Fluency:
         parsed.score_fluency ??
         parsed.fluency_score ??
@@ -75,17 +107,22 @@ export async function POST(req: NextRequest) {
         parsed.coherence_score ??
         parsed.coherence ??
         null,
+
       Strengths: Array.isArray(parsed.strengths)
         ? parsed.strengths.join("; ")
         : parsed.strengths || "",
+
       Weaknesses: Array.isArray(parsed.weaknesses)
         ? parsed.weaknesses.join("; ")
         : parsed.weaknesses || "",
+
       Recommendations: Array.isArray(parsed.recommendations)
         ? parsed.recommendations.join("; ")
         : parsed.recommendations || "",
+
       RawTranscript:
         parsed.raw_transcript || body.transcript || body.rawText || "",
+
       LanguagePair: parsed.language_pair || "EN-??",
     };
 
@@ -124,3 +161,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
