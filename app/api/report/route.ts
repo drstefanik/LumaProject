@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE_NAME =
-  process.env.AIRTABLE_LUMA_TABLE_NAME || "LUMA Reports";
+const AIRTABLE_REPORT_TABLE =
+  process.env.AIRTABLE_REPORT_TABLE || "LUMASpeakingReports";
 
 export async function POST(req: NextRequest) {
   try {
-    if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
+    if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_REPORT_TABLE) {
       console.error("Missing Airtable env vars");
       return NextResponse.json(
         { ok: false, error: "Airtable not configured" },
@@ -16,23 +16,56 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    const parsed = body.parsed || {};
 
+    // Mappiamo il JSON di LUMA sui campi della tua tabella
     const fields: Record<string, any> = {
-      Date: body.created_at || new Date().toISOString(),
-      "Raw text": body.rawText || "",
-      "JSON parsed": JSON.stringify(body.parsed ?? {}, null, 2)
+      CandidateId: parsed.candidate_id || "",
+      Name: parsed.candidate_name || parsed.name || "",
+      DateTime: body.created_at || new Date().toISOString(),
+      Status: parsed.status || "Completed",
+      Selected: parsed.selected ?? false,
+      AccentDetected: parsed.accent || parsed.accent_detected || "",
+      AccentOverall:
+        parsed.accent_overall ||
+        parsed.accent_comment ||
+        parsed.overall_comment ||
+        "",
+      CEFR_Global:
+        parsed.cefr_global || parsed.cefr_level || parsed.level || "",
+      Score_Fluency:
+        parsed.score_fluency ??
+        parsed.fluency_score ??
+        parsed.fluency ??
+        null,
+      Score_Pronunciation:
+        parsed.score_pronunciation ??
+        parsed.pronunciation_score ??
+        parsed.pronunciation ??
+        null,
+      Score_Grammar:
+        parsed.score_grammar ?? parsed.grammar_score ?? parsed.grammar ?? null,
+      Score_Vocabulary:
+        parsed.score_vocabulary ??
+        parsed.vocabulary_score ??
+        parsed.vocabulary ??
+        null,
+      Score_Coherence:
+        parsed.score_coherence ??
+        parsed.coherence_score ??
+        parsed.coherence ??
+        null,
+      Strengths: (parsed.strengths || []).join("; "),
+      Weaknesses: (parsed.weaknesses || []).join("; "),
+      Recommendations: (parsed.recommendations || []).join("; "),
+      RawTranscript:
+        parsed.raw_transcript || body.transcript || body.rawText || "",
+      LanguagePair: parsed.language_pair || "EN-??"
     };
-
-    if (body.parsed?.cefr_level) fields["CEFR level"] = body.parsed.cefr_level;
-    if (body.parsed?.accent) fields["Accent"] = body.parsed.accent;
-    if (body.parsed?.candidate_name)
-      fields["Candidate"] = body.parsed.candidate_name;
-    if (body.parsed?.overall_comment)
-      fields["Overall comment"] = body.parsed.overall_comment;
 
     const res = await fetch(
       `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
-        AIRTABLE_TABLE_NAME
+        AIRTABLE_REPORT_TABLE
       )}`,
       {
         method: "POST",
