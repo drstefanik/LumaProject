@@ -137,34 +137,48 @@ export default function LumaSpeakingTestPage() {
         setStatus("active");
         startTimer();
 
-        const instructions = `
-You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI.
+        const contextLines: string[] = [
+          `The candidate's name is "${candidateFullName}".`,
+        ];
 
-The candidate's name is "${candidateFullName}".
-${nativeLanguage ? `The candidate's native language is ${nativeLanguage}.` : ""}
-${country ? `The candidate is currently in ${country}.` : ""}
-${testPurpose ? `The purpose of this test is: ${testPurpose}.` : ""}
+        if (nativeLanguage) {
+          contextLines.push(
+            `The candidate's native language is ${nativeLanguage}.`
+          );
+        }
 
-ROLE
-- You conduct a realistic English speaking exam (placement / proficiency).
-- Ask questions, keep the conversation natural, and listen carefully.
-- Do NOT give the final evaluation or explicit score during the conversation.
+        if (country) {
+          contextLines.push(`The candidate is currently in ${country}.`);
+        }
 
-LANGUAGE
-- You MUST ALWAYS speak ONLY in English.
-- You MUST NEVER speak Italian or any other language.
-- If the candidate uses another language, say briefly in English:
-  "Please answer in English. This speaking test must be completed in English only."
+        if (testPurpose) {
+          contextLines.push(`The purpose of this test is: ${testPurpose}.`);
+        }
 
-INTERACTION
-- Ask one question at a time and wait.
-- If you do not understand, say: "I'm sorry, could you repeat that in English, please?"
-- If the candidate is silent, say: "Take your time. Please answer in English when you are ready."
-
-EVALUATION
-- Do not mention CEFR levels, scores or bands during the conversation.
-- Wait for a "response.create" event with metadata.purpose = "speaking_report" before you generate a JSON report.
-        `.trim();
+        const instructions = [
+          "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI.",
+          "",
+          ...contextLines,
+          "",
+          "ROLE",
+          "- You conduct a realistic English speaking exam (placement / proficiency).",
+          "- Ask questions, keep the conversation natural, and listen carefully.",
+          "- Do NOT give the final evaluation or explicit score during the conversation.",
+          "",
+          "LANGUAGE",
+          "- You MUST ALWAYS speak ONLY in English.",
+          "- You MUST NEVER speak Italian or any other language.",
+          '- If the candidate uses another language, say briefly in English: "Please answer in English. This speaking test must be completed in English only."',
+          "",
+          "INTERACTION",
+          "- Ask one question at a time and wait.",
+          '- If you do not understand, say: "I\'m sorry, could you repeat that in English, please?"',
+          '- If the candidate is silent, say: "Take your time. Please answer in English when you are ready."',
+          "",
+          "EVALUATION",
+          "- Do not mention CEFR levels, scores or bands during the conversation.",
+          '- Wait for a "response.create" event with metadata.purpose = "speaking_report" before you generate a JSON report.',
+        ].join("\n");
 
         const sessionUpdate = {
           type: "session.update",
@@ -445,27 +459,23 @@ EVALUATION
                 </div>
 
                 {/* Premium Siri-style Orb */}
-<div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-4 shadow-xl shadow-indigo-900/50">
-  <div className="relative flex h-40 w-full items-center justify-center rounded-xl bg-gradient-to-b from-slate-950 to-black overflow-hidden">
+                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-4 shadow-xl shadow-indigo-900/50">
+                  <div className="relative flex h-40 w-full items-center justify-center rounded-xl bg-gradient-to-b from-slate-950 to-black overflow-hidden">
+                    {/* outer pulsing wave */}
+                    <div className="absolute h-48 w-48 rounded-full bg-gradient-to-r from-fuchsia-500/20 via-sky-400/20 to-purple-500/20 animate-ping" />
+                    {/* soft glow */}
+                    <div className="absolute h-36 w-36 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 blur-xl opacity-60" />
+                    {/* main orb */}
+                    <div className="relative h-24 w-24 rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-300 to-purple-300 shadow-[0_0_40px_rgba(236,72,153,0.8)] animate-pulse" />
+                    {/* thin ring */}
+                    <div className="absolute h-32 w-32 rounded-full border border-fuchsia-300/40 animate-pulse opacity-50" />
+                  </div>
 
-    {/* onda esterna che pulsa */}
-    <div className="absolute h-48 w-48 rounded-full bg-gradient-to-r from-fuchsia-500/20 via-sky-400/20 to-purple-500/20 animate-ping"></div>
-
-    {/* glow morbido */}
-    <div className="absolute h-36 w-36 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 blur-xl opacity-60"></div>
-
-    {/* orb principale */}
-    <div className="relative h-24 w-24 rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-300 to-purple-300 shadow-[0_0_40px_rgba(236,72,153,0.8)] animate-pulse"></div>
-
-    {/* anello sottile pulsante */}
-    <div className="absolute h-32 w-32 rounded-full border border-fuchsia-300/40 animate-pulse opacity-50"></div>
-
-  </div>
-
-  <p className="relative mt-3 text-center text-[11px] text-slate-200">
-    LUMA listening field
-  </p>
-</div>
+                  <p className="relative mt-3 text-center text-[11px] text-slate-200">
+                    LUMA listening field
+                  </p>
+                </div>
+              </div>
 
               {/* form fields */}
               <div className="mt-6 grid gap-3 text-xs text-slate-100 md:grid-cols-2">
