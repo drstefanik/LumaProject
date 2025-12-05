@@ -279,21 +279,15 @@ EVALUATION & REPORT
 
       appendLog("Sending SDP offer to OpenAI Realtime API...");
 
-const callRes = await fetch(
-  "https://api.openai.com/v1/realtime",
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${client_secret}`,
-      "Content-Type": "application/sdp",
-      "OpenAI-Beta": "realtime=v1",
-    },
-    body: offer.sdp || "",
-  }
-);
-
-
-
+      const callRes = await fetch("https://api.openai.com/v1/realtime", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${client_secret}`,
+          "Content-Type": "application/sdp",
+          "OpenAI-Beta": "realtime=v1",
+        },
+        body: offer.sdp || "",
+      });
 
       if (!callRes.ok) {
         appendLog("Failed to create realtime call.");
@@ -338,13 +332,13 @@ const callRes = await fetch(
           "Now, as LUMA, produce ONLY a structured JSON evaluation of the candidate's English speaking performance. " +
           "Do NOT speak this aloud, only return JSON. " +
           "Use this exact schema: " +
-          "{ \"candidate_name\": string | null, " +
-          "\"cefr_level\": string, " +
-          "\"accent\": string, " +
-          "\"strengths\": string[], " +
-          "\"weaknesses\": string[], " +
-          "\"recommendations\": string[], " +
-          "\"overall_comment\": string }.",
+          '{ "candidate_name": string | null, ' +
+          '"cefr_level": string, ' +
+          '"accent": string, ' +
+          '"strengths": string[], ' +
+          '"weaknesses": string[], ' +
+          '"recommendations": string[], ' +
+          '"overall_comment": string }.',
         metadata: {
           purpose: "speaking_report",
         },
@@ -453,7 +447,9 @@ const callRes = await fetch(
                     LUMA Speaking Test
                   </h1>
                   <p className="max-w-2xl text-sm leading-relaxed text-slate-200">
-                    Register the candidate, start the live conversation, and let LUMA score pronunciation, rhythm, and coherence in real time.
+                    Register the candidate, start the live conversation, and
+                    let LUMA score pronunciation, rhythm, and coherence in real
+                    time.
                   </p>
                   <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
                     <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-1 text-emerald-100 ring-1 ring-emerald-300/40">
@@ -461,29 +457,27 @@ const callRes = await fetch(
                       {status === "idle"
                         ? "Ready to start"
                         : status === "connecting"
-                          ? "Connecting to LUMA"
-                          : status === "active"
-                            ? "Live session"
-                            : "Generating report"}
+                        ? "Connecting to LUMA"
+                        : status === "active"
+                        ? "Live session"
+                        : "Generating report"}
                     </span>
                     <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-white ring-1 ring-white/20">
                       ⏱ {minutes}:{seconds}
                     </span>
                   </div>
                 </div>
-                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-white/5 p-2 shadow-lg shadow-indigo-900/40">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/15 via-indigo-500/10 to-transparent" />
-                  <video
-                    src="/Luma-project.mp4"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="relative h-36 w-full rounded-xl object-cover"
-                    aria-label="LUMA demo clip"
-                  />
+
+                {/* Nebula al posto del video "Instant scoring preview" */}
+                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-2 shadow-lg shadow-indigo-900/40">
+                  <div className="relative h-36 w-full overflow-hidden rounded-xl bg-slate-950">
+                    <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-fuchsia-500/40 blur-3xl animate-pulse" />
+                    <div className="absolute -right-6 -bottom-12 h-44 w-44 rounded-full bg-sky-500/40 blur-3xl animate-pulse" />
+                    <div className="absolute left-1/3 top-1/2 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/30 blur-3xl animate-pulse" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.25),transparent_55%),radial-gradient(circle_at_100%_0%,rgba(244,114,182,0.35),transparent_55%),radial-gradient(circle_at_50%_100%,rgba(129,140,248,0.3),transparent_55%)] mix-blend-screen" />
+                  </div>
                   <p className="relative mt-2 text-[11px] text-slate-200">
-                    Instant scoring preview
+                    LUMA listening field
                   </p>
                 </div>
               </div>
@@ -640,68 +634,26 @@ const callRes = await fetch(
                       {status === "idle"
                         ? "Ready"
                         : status === "connecting"
-                          ? "Connecting"
-                          : status === "active"
-                            ? "Live"
-                            : "Evaluating"}
+                        ? "Connecting"
+                        : status === "active"
+                        ? "Live"
+                        : "Evaluating"}
                     </span>
                     <span className="rounded-full bg-white/10 px-3 py-1 font-semibold text-white">
                       {minutes}:{seconds}
                     </span>
-                    <p className="text-slate-300">Keep this tab active. LUMA speaks only in English.</p>
+                    <p className="text-slate-300">
+                      Keep this tab active. LUMA speaks only in English.
+                    </p>
                   </div>
                   <audio ref={audioRef} className="hidden" />
                 </div>
               </div>
             </section>
-
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/50 backdrop-blur">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-sky-200">Session log</h2>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-300">
-                  Live transcript
-                </span>
-              </div>
-
-              <div className="mt-3 max-h-64 overflow-auto rounded-2xl border border-white/5 bg-black/40 p-3">
-                {log.length === 0 ? (
-                  <p className="text-[11px] text-slate-400">No events yet. Start the test to see the conversation.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {log.map((entry, idx) => (
-                      <li key={idx} className="text-[11px] text-slate-200">
-                        {entry}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </section>
           </div>
 
           <aside className="flex flex-col gap-6">
-            <div className="overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-2xl shadow-indigo-900/40">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/10 via-indigo-500/5 to-transparent" />
-                <video
-                  src="/Luma-project.mp4"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  className="h-56 w-full object-cover"
-                />
-              </div>
-              <div className="space-y-2 p-5 text-sm text-slate-200">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-sky-200">Live demo</p>
-                <p className="text-base font-semibold text-white">
-                  Pronunciation, rhythm, and coherence scored in real time.
-                </p>
-                <p className="text-[12px] leading-relaxed text-slate-300">
-                  The clip mirrors the homepage experience so candidates can preview how LUMA listens and prepares the final report.
-                </p>
-              </div>
-            </div>
+            {/* Rimossa la card "Live demo" */}
 
             <div className="rounded-3xl border border-white/15 bg-white/5 p-5 shadow-2xl shadow-indigo-900/40 backdrop-blur">
               <h3 className="text-sm font-semibold text-sky-200">Candidate</h3>
@@ -710,20 +662,30 @@ const callRes = await fetch(
                 {email && <span className="text-slate-400">({email})</span>}
               </p>
 
-              <h3 className="mb-1 mt-4 text-xs font-semibold text-slate-300">Tips for best results</h3>
+              <h3 className="mb-1 mt-4 text-xs font-semibold text-slate-300">
+                Tips for best results
+              </h3>
               <ul className="space-y-1 text-[12px] text-slate-300">
                 <li>• Use headphones and a clear microphone.</li>
                 <li>• Answer in full sentences, not single words.</li>
-                <li>• Imagine you are in an official British Institutes speaking exam.</li>
+                <li>
+                  • Imagine you are in an official British Institutes speaking
+                  exam.
+                </li>
               </ul>
             </div>
 
             <div className="rounded-3xl border border-white/15 bg-white/5 p-5 text-sm text-slate-100 shadow-2xl shadow-indigo-900/40 backdrop-blur">
-              <h2 className="mb-2 text-sm font-semibold text-sky-200">Final speaking report</h2>
+              <h2 className="mb-2 text-sm font-semibold text-sky-200">
+                Final speaking report
+              </h2>
 
               {!report && (
                 <p className="text-[12px] text-slate-300">
-                  After you press <span className="font-semibold text-white">Stop</span>, LUMA will generate here a structured written evaluation of the candidate&apos;s speaking performance.
+                  After you press{" "}
+                  <span className="font-semibold text-white">Stop</span>, LUMA
+                  will generate here a structured written evaluation of the
+                  candidate&apos;s speaking performance.
                 </p>
               )}
 
@@ -734,18 +696,24 @@ const callRes = await fetch(
                       {report.parsed.cefr_level && (
                         <p>
                           <span className="text-slate-400">CEFR level:</span>{" "}
-                          <span className="font-semibold">{report.parsed.cefr_level}</span>
+                          <span className="font-semibold">
+                            {report.parsed.cefr_level}
+                          </span>
                         </p>
                       )}
                       {report.parsed.accent && (
                         <p>
-                          <span className="text-slate-400">Detected accent:</span>{" "}
+                          <span className="text-slate-400">
+                            Detected accent:
+                          </span>{" "}
                           {report.parsed.accent}
                         </p>
                       )}
                       {report.parsed.strengths && (
                         <div>
-                          <span className="text-slate-400">Main strengths:</span>
+                          <span className="text-slate-400">
+                            Main strengths:
+                          </span>
                           <ul className="ml-4 list-disc">
                             {report.parsed.strengths.map((s, i) => (
                               <li key={i}>{s}</li>
@@ -755,7 +723,9 @@ const callRes = await fetch(
                       )}
                       {report.parsed.weaknesses && (
                         <div>
-                          <span className="text-slate-400">Areas to improve:</span>
+                          <span className="text-slate-400">
+                            Areas to improve:
+                          </span>
                           <ul className="ml-4 list-disc">
                             {report.parsed.weaknesses.map((s, i) => (
                               <li key={i}>{s}</li>
@@ -765,7 +735,9 @@ const callRes = await fetch(
                       )}
                       {report.parsed.recommendations && (
                         <div>
-                          <span className="text-slate-400">Recommendations:</span>
+                          <span className="text-slate-400">
+                            Recommendations:
+                          </span>
                           <ul className="ml-4 list-disc">
                             {report.parsed.recommendations.map((s, i) => (
                               <li key={i}>{s}</li>
@@ -775,14 +747,18 @@ const callRes = await fetch(
                       )}
                       {report.parsed.overall_comment && (
                         <p>
-                          <span className="text-slate-400">Examiner comment:</span>{" "}
+                          <span className="text-slate-400">
+                            Examiner comment:
+                          </span>{" "}
                           {report.parsed.overall_comment}
                         </p>
                       )}
                     </>
                   ) : (
                     <>
-                      <p className="text-slate-300">LUMA generated the following evaluation:</p>
+                      <p className="text-slate-300">
+                        LUMA generated the following evaluation:
+                      </p>
                       <pre className="mt-1 max-h-40 overflow-auto rounded bg-black/60 p-2 font-mono text-[11px]">
                         {report.rawText}
                       </pre>
