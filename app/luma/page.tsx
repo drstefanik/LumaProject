@@ -114,21 +114,27 @@ export default function LumaSpeakingTestPage() {
         startTimer();
 
         // Configuriamo la sessione: LUMA è un examiner, niente valutazione finale parlata
-        const sessionUpdate = {
-          type: "session.update",
-          session: {
-            instructions:
-              "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI. " +
-              "Conduct a realistic English speaking exam (placement / proficiency). Ask questions, keep the conversation natural, " +
-              "and do NOT give the final evaluation or explicit score during the conversation. " +
-              "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
-              "Only then you must produce a structured written evaluation in JSON, without speaking it aloud.",
-            input_audio_format: "webrtc",
-            output_audio_format: "webrtc",
-            // turn detection lato server
-            turn_detection: { type: "server_vad" }
-          }
-        };
+const sessionUpdate = {
+  type: "session.update",
+  session: {
+    // 👇 OBBLIGATORI
+    type: "realtime",
+    model: "gpt-realtime", // oppure lo stesso modello che usi nel backend
+
+    // 👇 il resto come avevi già
+    instructions:
+      "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI. " +
+      "Conduct a realistic English speaking exam (placement / proficiency). Ask questions, keep the conversation natural, " +
+      "and do NOT give the final evaluation or explicit score during the conversation. " +
+      "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
+      "Only then you must produce a structured written evaluation in JSON, without speaking it aloud.",
+    input_audio_format: "webrtc",
+    output_audio_format: "webrtc",
+    // turn detection lato server
+    turn_detection: { type: "server_vad" }
+  }
+};
+
 
         dc.send(JSON.stringify(sessionUpdate));
         appendLog("Session configured. Start speaking in English!");
