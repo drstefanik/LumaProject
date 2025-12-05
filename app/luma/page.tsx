@@ -160,7 +160,6 @@ export default function LumaSpeakingTestPage() {
               "and do NOT give the final evaluation or explicit score during the conversation. " +
               "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
               "Only then you must produce a structured written evaluation in JSON, without speaking it aloud.",
-            turn_detection: { type: "server_vad" },
           },
         };
 
