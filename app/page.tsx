@@ -9,7 +9,7 @@ const highlights = [
   {
     title: "Personalized journeys",
     description:
-      "Realistic scenarios and rubrics aligned with Cambridge, IELTS, and professional needs.",
+      "Realistic scenarios and rubrics aligned with University and professional needs.",
   },
   {
     title: "Reports ready to share",
@@ -47,7 +47,7 @@ export default function HomePage() {
         <section className="flex-1 space-y-8">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/15">
             <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-            British Institutes · Speaking Examiner
+            LUMA - Language Understanding Mastery Assistant
           </div>
           <div className="space-y-4">
             <h1 className="text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
@@ -96,7 +96,7 @@ export default function HomePage() {
             <div className="absolute -bottom-10 right-10 h-24 w-24 rounded-full bg-emerald-300/30 blur-3xl" aria-hidden />
             <div className="overflow-hidden rounded-2xl border border-white/10">
               <video
-                src="/Luma-project.mp4"
+                src="/Luma-project.gif"
                 autoPlay
                 loop
                 muted
