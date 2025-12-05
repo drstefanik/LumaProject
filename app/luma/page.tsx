@@ -444,46 +444,28 @@ EVALUATION
                   </div>
                 </div>
 
-                {/* SIRI-LIKE FIELD */}
-                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-2 shadow-lg shadow-indigo-900/40">
-                  <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-b from-slate-950 via-slate-950 to-black">
-                    {/* orb */}
-                    <div className="relative h-20 w-20">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 opacity-60 blur-md" />
-                      <div className="absolute inset-0 rounded-full border border-sky-300/40 animate-ping opacity-60" />
-                      <div className="absolute inset-[6px] rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-400 to-purple-400 shadow-[0_0_35px_rgba(244,114,182,0.9)]" />
-                    </div>
+                {/* Premium Siri-style Orb */}
+<div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-4 shadow-xl shadow-indigo-900/50">
+  <div className="relative flex h-40 w-full items-center justify-center rounded-xl bg-gradient-to-b from-slate-950 to-black overflow-hidden">
 
-                    {/* bars */}
-                    <div className="absolute bottom-4 flex gap-1.5">
-                      <span
-                        className="h-3 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
-                        style={{ animationDuration: "1.1s" }}
-                      />
-                      <span
-                        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
-                        style={{ animationDuration: "0.9s", animationDelay: "0.1s" }}
-                      />
-                      <span
-                        className="h-9 w-1.5 rounded-full bg-purple-300/90 animate-pulse"
-                        style={{ animationDuration: "1.2s", animationDelay: "0.2s" }}
-                      />
-                      <span
-                        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
-                        style={{ animationDuration: "0.95s", animationDelay: "0.15s" }}
-                      />
-                      <span
-                        className="h-4 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
-                        style={{ animationDuration: "1.05s", animationDelay: "0.05s" }}
-                      />
-                    </div>
-                  </div>
+    {/* onda esterna che pulsa */}
+    <div className="absolute h-48 w-48 rounded-full bg-gradient-to-r from-fuchsia-500/20 via-sky-400/20 to-purple-500/20 animate-ping"></div>
 
-                  <p className="relative mt-2 text-[11px] text-slate-200">
-                    LUMA listening field
-                  </p>
-                </div>
-              </div>
+    {/* glow morbido */}
+    <div className="absolute h-36 w-36 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 blur-xl opacity-60"></div>
+
+    {/* orb principale */}
+    <div className="relative h-24 w-24 rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-300 to-purple-300 shadow-[0_0_40px_rgba(236,72,153,0.8)] animate-pulse"></div>
+
+    {/* anello sottile pulsante */}
+    <div className="absolute h-32 w-32 rounded-full border border-fuchsia-300/40 animate-pulse opacity-50"></div>
+
+  </div>
+
+  <p className="relative mt-3 text-center text-[11px] text-slate-200">
+    LUMA listening field
+  </p>
+</div>
 
               {/* form fields */}
               <div className="mt-6 grid gap-3 text-xs text-slate-100 md:grid-cols-2">
