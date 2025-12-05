@@ -468,19 +468,46 @@ EVALUATION & REPORT
                   </div>
                 </div>
 
-                {/* Nebula al posto del video "Instant scoring preview" */}
-                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-2 shadow-lg shadow-indigo-900/40">
-                  <div className="relative h-36 w-full overflow-hidden rounded-xl bg-slate-950">
-                    <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-fuchsia-500/40 blur-3xl animate-pulse" />
-                    <div className="absolute -right-6 -bottom-12 h-44 w-44 rounded-full bg-sky-500/40 blur-3xl animate-pulse" />
-                    <div className="absolute left-1/3 top-1/2 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/30 blur-3xl animate-pulse" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(56,189,248,0.25),transparent_55%),radial-gradient(circle_at_100%_0%,rgba(244,114,182,0.35),transparent_55%),radial-gradient(circle_at_50%_100%,rgba(129,140,248,0.3),transparent_55%)] mix-blend-screen" />
-                  </div>
-                  <p className="relative mt-2 text-[11px] text-slate-200">
-                    LUMA listening field
-                  </p>
-                </div>
-              </div>
+                {/* Siri-style listening field */}
+<div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-2 shadow-lg shadow-indigo-900/40">
+  <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-b from-slate-950 via-slate-950 to-black">
+    {/* cerchio centrale tipo Siri */}
+    <div className="relative h-20 w-20">
+      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 opacity-60 blur-md" />
+      <div className="absolute inset-0 rounded-full border border-sky-300/40 animate-ping opacity-60" />
+      <div className="absolute inset-[6px] rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-400 to-purple-400 shadow-[0_0_35px_rgba(244,114,182,0.9)]" />
+    </div>
+
+    {/* barrette audio tipo equalizer */}
+    <div className="absolute bottom-4 flex gap-1.5">
+      <span
+        className="h-3 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
+        style={{ animationDuration: "1.1s" }}
+      />
+      <span
+        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
+        style={{ animationDuration: "0.9s", animationDelay: "0.1s" }}
+      />
+      <span
+        className="h-9 w-1.5 rounded-full bg-purple-300/90 animate-pulse"
+        style={{ animationDuration: "1.2s", animationDelay: "0.2s" }}
+      />
+      <span
+        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
+        style={{ animationDuration: "0.95s", animationDelay: "0.15s" }}
+      />
+      <span
+        className="h-4 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
+        style={{ animationDuration: "1.05s", animationDelay: "0.05s" }}
+      />
+    </div>
+  </div>
+
+  <p className="relative mt-2 text-[11px] text-slate-200">
+    LUMA listening field
+  </p>
+</div>
+
 
               <div className="mt-6 grid gap-3 text-xs text-slate-100 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
