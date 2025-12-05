@@ -2,34 +2,34 @@ import Link from "next/link";
 
 const highlights = [
   {
-    title: "Valutazione immediata",
+    title: "Instant scoring",
     description:
-      "Scopri come migliorare la tua pronuncia, fluidità e coerenza con un coach AI dedicato.",
+      "Improve pronunciation, fluency, and coherence with an always-on AI speaking coach.",
   },
   {
-    title: "Percorsi personalizzati",
+    title: "Personalized journeys",
     description:
-      "Scenari realistici e rubriche calibrate su Cambridge, IELTS e bisogni professionali.",
+      "Realistic scenarios and rubrics aligned with Cambridge, IELTS, and professional needs.",
   },
   {
-    title: "Report pronti all'uso",
+    title: "Reports ready to share",
     description:
-      "Pannello Admin integrato per monitorare risultati, trend e punti di attenzione.",
+      "Integrated Admin to track results, trends, and focus areas instantly.",
   },
 ];
 
 const steps = [
   {
-    title: "1. Avvia il test",
-    copy: "Accedi a LUMA, scegli il livello e inizia subito a parlare.",
+    title: "1. Start the test",
+    copy: "Log into LUMA, choose the level, and start speaking right away.",
   },
   {
-    title: "2. Ricevi feedback smart",
-    copy: "Analisi in tempo reale su lessico, grammatica e pronuncia, con suggerimenti pratici.",
+    title: "2. Get smart feedback",
+    copy: "Real-time analysis on vocabulary, grammar, and pronunciation with practical tips.",
   },
   {
-    title: "3. Condividi i report",
-    copy: "Invia i risultati agli studenti o consulta le performance in Admin.",
+    title: "3. Share the reports",
+    copy: "Send results to learners or review performance trends in Admin.",
   },
 ];
 
@@ -51,11 +51,11 @@ export default function HomePage() {
           </div>
           <div className="space-y-4">
             <h1 className="text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
-              LUMA, il tuo coach di speaking veloce, chiaro e brillante.
+              LUMA, your speaking coach that is fast, clear, and brilliant.
             </h1>
             <p className="max-w-2xl text-lg text-slate-200 sm:text-xl">
-              Allenati con simulazioni dinamiche, ricevi feedback immediati e condividi
-              report pronti per studenti e docenti. Zero stress, solo risultati visibili.
+              Train with dynamic simulations, receive instant feedback, and share reports
+              ready for learners and teachers. Zero stress, just visible results.
             </p>
           </div>
 
@@ -64,16 +64,16 @@ export default function HomePage() {
               href="/luma"
               className="inline-flex items-center justify-center rounded-full bg-sky-500 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-sky-500/25 transition hover:-translate-y-0.5 hover:bg-sky-400"
             >
-              Inizia il test di speaking
+              Start the speaking test
             </Link>
             <Link
               href="/admin/luma"
               className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-base font-semibold text-slate-100 transition hover:-translate-y-0.5 hover:border-white hover:text-white"
             >
-              Admin · Visualizza report
+              Admin · View reports
             </Link>
             <p className="text-sm text-slate-300">
-              Nessun setup. Bastano microfono e 10 minuti.
+              No setup. You just need a microphone and 10 minutes.
             </p>
           </div>
 
@@ -102,16 +102,16 @@ export default function HomePage() {
                 muted
                 playsInline
                 className="h-full w-full object-cover"
-                aria-label="Demo LUMA in azione"
+                aria-label="LUMA demo in action"
               />
             </div>
             <div className="mt-4 flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                  Demo live
+                  Live demo
                 </p>
                 <p className="text-lg font-semibold text-white">
-                  Pronuncia, ritmo e coerenza valutati in tempo reale.
+                  Pronunciation, rhythm, and coherence scored in real time.
                 </p>
               </div>
               <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold uppercase text-emerald-200 ring-1 ring-emerald-200/40">
