@@ -23,9 +23,15 @@ export default function LumaSpeakingTestPage() {
   const [timer, setTimer] = useState<number>(0);
   const [report, setReport] = useState<ReportState | null>(null);
 
-  // dati candidato
-  const [candidateName, setCandidateName] = useState<string>("");
-  const [candidateEmail, setCandidateEmail] = useState<string>("");
+  // ---- form registrazione candidato ----
+  const [firstName, setFirstName] = useState<string>("");
+  const [lastName, setLastName] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [birthDate, setBirthDate] = useState<string>("");
+  const [nativeLanguage, setNativeLanguage] = useState<string>("");
+  const [country, setCountry] = useState<string>("");
+  const [testPurpose, setTestPurpose] = useState<string>("");
+  const [privacyAccepted, setPrivacyAccepted] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
@@ -34,6 +40,8 @@ export default function LumaSpeakingTestPage() {
 
   // buffer per il testo del report che arriva in streaming
   const reportBufferRef = useRef<string>("");
+
+  const candidateFullName = `${firstName} ${lastName}`.trim();
 
   function appendLog(msg: string) {
     setLog((l) => [...l, `${new Date().toLocaleTimeString()} – ${msg}`]);
@@ -54,7 +62,6 @@ export default function LumaSpeakingTestPage() {
 
   useEffect(() => {
     return () => {
-      // cleanup alla chiusura pagina
       peerRef.current?.close();
       stopTimer();
     };
@@ -62,9 +69,20 @@ export default function LumaSpeakingTestPage() {
 
   async function startTest() {
     try {
-      if (!candidateName.trim()) {
-        appendLog("Please enter the candidate name before starting.");
-        alert("Please enter the candidate name before starting the test.");
+      // validazione form
+      if (!candidateFullName) {
+        alert("Please enter candidate first name and last name.");
+        appendLog("Please enter candidate first name and last name.");
+        return;
+      }
+      if (!email.trim()) {
+        alert("Please enter candidate email.");
+        appendLog("Please enter candidate email.");
+        return;
+      }
+      if (!privacyAccepted) {
+        alert("You must accept the privacy policy to start the test.");
+        appendLog("Privacy policy not accepted.");
         return;
       }
 
@@ -123,7 +141,6 @@ export default function LumaSpeakingTestPage() {
         setStatus("active");
         startTimer();
 
-        // Configuriamo la sessione: LUMA è un examiner
         const sessionUpdate = {
           type: "session.update",
           session: {
@@ -131,7 +148,14 @@ export default function LumaSpeakingTestPage() {
             model: "gpt-realtime",
             instructions:
               "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI. " +
-              `The candidate's name is "${candidateName.trim()}". Address them by their first name. ` +
+              `The candidate's name is "${candidateFullName}". ` +
+              (nativeLanguage
+                ? `The candidate's native language is ${nativeLanguage}. `
+                : "") +
+              (country ? `The candidate is currently in ${country}. ` : "") +
+              (testPurpose
+                ? `The purpose of this test is: ${testPurpose}. `
+                : "") +
               "Conduct a realistic English speaking exam (placement / proficiency). Ask questions, keep the conversation natural, " +
               "and do NOT give the final evaluation or explicit score during the conversation. " +
               "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
@@ -148,7 +172,6 @@ export default function LumaSpeakingTestPage() {
         try {
           const msg = JSON.parse(event.data);
 
-          // 1) Filtriamo gli eventi rumorosi per i log
           if (
             msg.type === "response.output_audio_transcript.delta" ||
             msg.type === "input_audio_buffer.append" ||
@@ -159,7 +182,6 @@ export default function LumaSpeakingTestPage() {
             return;
           }
 
-          // 2) Transcript comprensibile (se vogliamo visualizzarlo nei log)
           if (msg.type === "response.output_audio_transcript.done") {
             const text =
               msg.output_audio_transcript?.join("") ??
@@ -171,7 +193,6 @@ export default function LumaSpeakingTestPage() {
             return;
           }
 
-          // 3) Gestione report finale (solo testo, niente audio)
           if (
             (msg.type === "response.output_text.delta" ||
               msg.type === "response.output_text.done") &&
@@ -191,7 +212,6 @@ export default function LumaSpeakingTestPage() {
             }
           }
 
-          // 4) Log sintetico per gli altri eventi utili
           if (msg.type === "session.created") {
             appendLog("Session created.");
           } else if (msg.type === "response.created") {
@@ -212,7 +232,7 @@ export default function LumaSpeakingTestPage() {
             appendLog("Event: " + msg.type);
           }
         } catch {
-          // messaggi non JSON: ignoriamo
+          // ignore non-JSON messages
         }
       };
 
@@ -255,7 +275,6 @@ export default function LumaSpeakingTestPage() {
     }
   }
 
-  // Quando clicchi "Stop" chiediamo a LUMA SOLO il report scritto
   function requestFinalEvaluation() {
     const dc = dataChannelRef.current;
     if (!dc || dc.readyState !== "open") {
@@ -300,15 +319,23 @@ export default function LumaSpeakingTestPage() {
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      // non è JSON valido: lo lasciamo come testo grezzo
+      // se non è JSON valido, lo teniamo come testo grezzo
     }
 
     const payload = {
       created_at: new Date().toISOString(),
       rawText: trimmed,
       parsed,
-      candidate_name: candidateName.trim() || null,
-      candidate_email: candidateEmail.trim() || null,
+
+      candidate_name: candidateFullName || null,
+      candidate_first_name: firstName.trim() || null,
+      candidate_last_name: lastName.trim() || null,
+      candidate_email: email.trim() || null,
+      birth_date: birthDate || null,
+      native_language: nativeLanguage || null,
+      country: country || null,
+      test_purpose: testPurpose || null,
+      privacy_accepted: privacyAccepted,
     };
 
     setReport({
@@ -362,7 +389,7 @@ export default function LumaSpeakingTestPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-black text-white">
-      {/* VIDEO DI SFONDO – il tuo MP4 */}
+      {/* VIDEO DI SFONDO */}
       <video
         className="pointer-events-none fixed inset-0 h-full w-full object-cover opacity-40"
         src="/Luma-project.mp4"
@@ -371,8 +398,6 @@ export default function LumaSpeakingTestPage() {
         muted
         playsInline
       />
-
-      {/* overlay per leggere bene il testo */}
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-black/80 via-black/80 to-black/95" />
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-6 py-10">
@@ -385,49 +410,134 @@ export default function LumaSpeakingTestPage() {
         </div>
 
         <section className="mt-2 grid gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          {/* COLONNA SINISTRA: form + microfono + log */}
+          {/* COLONNA SINISTRA */}
           <div className="flex flex-col gap-6">
             <header className="space-y-3">
               <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">
                 LUMA – Speaking Test
               </h1>
               <p className="max-w-xl text-sm text-slate-200/90">
-                Click <span className="font-semibold">Start test</span> to
-                begin a live speaking session with LUMA. Speak naturally, as in
-                a real exam. At the end, LUMA will generate a structured report
-                on your performance.
+                Register the candidate and then click{" "}
+                <span className="font-semibold">Start test</span> to begin a
+                live speaking session with LUMA. At the end, LUMA will generate
+                a structured report on the candidate&apos;s performance.
               </p>
 
-              {/* DATI CANDIDATO */}
+              {/* FORM REGISTRAZIONE */}
               <div className="mt-4 grid gap-3 text-xs text-slate-200 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Candidate name <span className="text-pink-400">*</span>
+                    First name *
                   </label>
                   <input
                     className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
-                    placeholder="e.g. John Smith"
-                    value={candidateName}
-                    onChange={(e) => setCandidateName(e.target.value)}
+                    placeholder="John"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
                     disabled={!isIdle}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Email (optional)
+                    Last name *
+                  </label>
+                  <input
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    placeholder="Smith"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    disabled={!isIdle}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Email *
                   </label>
                   <input
                     className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
                     placeholder="candidate@example.com"
-                    value={candidateEmail}
-                    onChange={(e) => setCandidateEmail(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={!isIdle}
+                    type="email"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Date of birth
+                  </label>
+                  <input
+                    type="date"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    disabled={!isIdle}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Native language
+                  </label>
+                  <input
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    placeholder="Italian, Spanish, Arabic..."
+                    value={nativeLanguage}
+                    onChange={(e) => setNativeLanguage(e.target.value)}
+                    disabled={!isIdle}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Country
+                  </label>
+                  <input
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    placeholder="Italy, UAE, Spain..."
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
                     disabled={!isIdle}
                   />
                 </div>
               </div>
+
+              <div className="mt-3 flex flex-col gap-2 text-xs text-slate-200">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Purpose of the test
+                  </label>
+                  <input
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    placeholder="Placement, certification, work, university..."
+                    value={testPurpose}
+                    onChange={(e) => setTestPurpose(e.target.value)}
+                    disabled={!isIdle}
+                  />
+                </div>
+
+                <label className="mt-2 flex items-start gap-2 text-[11px] text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="mt-[2px]"
+                    checked={privacyAccepted}
+                    onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                    disabled={!isIdle}
+                  />
+                  <span>
+                    I have read and accept the{" "}
+                    <a
+                      href="/luma/privacy"
+                      target="_blank"
+                      className="text-pink-300 underline"
+                    >
+                      LUMA Privacy Policy
+                    </a>
+                    . *
+                  </span>
+                </label>
+              </div>
             </header>
 
-            {/* microfono grande */}
+            {/* microfono + pulsanti */}
             <div className="flex items-center gap-8">
               <div className="relative flex h-40 w-40 items-center justify-center">
                 <div className="absolute h-40 w-40 rounded-full bg-pink-500/20 blur-xl" />
@@ -482,7 +592,7 @@ export default function LumaSpeakingTestPage() {
 
             <audio ref={audioRef} autoPlay />
 
-            {/* LOG COMPATTO */}
+            {/* LOG */}
             <div className="mt-4 h-56 w-full overflow-auto rounded-xl border border-white/10 bg-black/60 p-3 text-[11px] font-mono text-slate-200">
               {log.map((l, i) => (
                 <div key={i}>{l}</div>
@@ -497,7 +607,7 @@ export default function LumaSpeakingTestPage() {
             </button>
           </div>
 
-          {/* COLONNA DESTRA: pannello info + report */}
+          {/* COLONNA DESTRA */}
           <aside className="flex flex-col gap-4">
             <div className="rounded-2xl border border-white/10 bg-black/70 p-5 text-xs text-slate-100 shadow-xl">
               <h2 className="mb-2 text-sm font-semibold text-pink-300">
@@ -517,12 +627,10 @@ export default function LumaSpeakingTestPage() {
               <p className="mb-4">
                 <span className="text-slate-400">Candidate:</span>{" "}
                 {report?.parsed?.candidate_name ||
-                  candidateName ||
+                  candidateFullName ||
                   "—"}{" "}
-                {candidateEmail && (
-                  <span className="text-slate-400">
-                    ({candidateEmail})
-                  </span>
+                {email && (
+                  <span className="text-slate-400">({email})</span>
                 )}
               </p>
 
@@ -539,7 +647,7 @@ export default function LumaSpeakingTestPage() {
               </ul>
             </div>
 
-            {/* REPORT FINALE */}
+            {/* REPORT */}
             <div className="rounded-2xl border border-pink-500/30 bg-black/80 p-5 text-xs text-slate-100 shadow-xl">
               <h2 className="mb-2 text-sm font-semibold text-pink-300">
                 Final speaking report
@@ -549,8 +657,8 @@ export default function LumaSpeakingTestPage() {
                 <p className="text-[11px] text-slate-400">
                   After you press{" "}
                   <span className="font-semibold">Stop</span>, LUMA will
-                  generate here a structured written evaluation of your
-                  speaking performance.
+                  generate here a structured written evaluation of the
+                  candidate&apos;s speaking performance.
                 </p>
               )}
 
@@ -642,3 +750,4 @@ export default function LumaSpeakingTestPage() {
     </main>
   );
 }
+
