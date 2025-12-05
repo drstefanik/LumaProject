@@ -1,27 +1,139 @@
 import Link from "next/link";
 
+const highlights = [
+  {
+    title: "Valutazione immediata",
+    description:
+      "Scopri come migliorare la tua pronuncia, fluidità e coerenza con un coach AI dedicato.",
+  },
+  {
+    title: "Percorsi personalizzati",
+    description:
+      "Scenari realistici e rubriche calibrate su Cambridge, IELTS e bisogni professionali.",
+  },
+  {
+    title: "Report pronti all'uso",
+    description:
+      "Pannello Admin integrato per monitorare risultati, trend e punti di attenzione.",
+  },
+];
+
+const steps = [
+  {
+    title: "1. Avvia il test",
+    copy: "Accedi a LUMA, scegli il livello e inizia subito a parlare.",
+  },
+  {
+    title: "2. Ricevi feedback smart",
+    copy: "Analisi in tempo reale su lessico, grammatica e pronuncia, con suggerimenti pratici.",
+  },
+  {
+    title: "3. Condividi i report",
+    copy: "Invia i risultati agli studenti o consulta le performance in Admin.",
+  },
+];
+
 export default function HomePage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6">
-      <h1 className="text-3xl font-bold">LUMA – Speaking Examiner</h1>
-      <p className="text-slate-600 max-w-xl text-center">
-        Welcome to LUMA (Language Understanding Mastery Assistant), the
-        British Institutes AI for English speaking practice and assessment.
-      </p>
-      <div className="flex gap-4">
-        <Link
-          href="/luma"
-          className="rounded-lg bg-sky-600 px-4 py-2 text-white font-medium hover:bg-sky-700"
-        >
-          Start Speaking Test
-        </Link>
-        <Link
-          href="/admin/luma"
-          className="rounded-lg border border-slate-300 px-4 py-2 text-slate-800 hover:bg-slate-100"
-        >
-          Admin – View Reports
-        </Link>
+    <main className="relative isolate min-h-screen overflow-hidden bg-slate-950 text-slate-50">
+      <div className="pointer-events-none absolute inset-0 opacity-60">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950" />
+        <div className="absolute -left-20 -top-24 h-72 w-72 rounded-full bg-sky-500/40 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-indigo-500/30 blur-3xl" />
+        <div className="absolute -right-24 top-10 h-72 w-72 rounded-full bg-teal-400/30 blur-3xl" />
       </div>
+
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col gap-12 px-6 py-16 lg:flex-row lg:items-center lg:py-24">
+        <section className="flex-1 space-y-8">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/15">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+            British Institutes · Speaking Examiner
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
+              LUMA, il tuo coach di speaking veloce, chiaro e brillante.
+            </h1>
+            <p className="max-w-2xl text-lg text-slate-200 sm:text-xl">
+              Allenati con simulazioni dinamiche, ricevi feedback immediati e condividi
+              report pronti per studenti e docenti. Zero stress, solo risultati visibili.
+            </p>
+          </div>
+
+          <div className="flex flex-col flex-wrap gap-4 sm:flex-row sm:items-center">
+            <Link
+              href="/luma"
+              className="inline-flex items-center justify-center rounded-full bg-sky-500 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-sky-500/25 transition hover:-translate-y-0.5 hover:bg-sky-400"
+            >
+              Inizia il test di speaking
+            </Link>
+            <Link
+              href="/admin/luma"
+              className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-base font-semibold text-slate-100 transition hover:-translate-y-0.5 hover:border-white hover:text-white"
+            >
+              Admin · Visualizza report
+            </Link>
+            <p className="text-sm text-slate-300">
+              Nessun setup. Bastano microfono e 10 minuti.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {highlights.map((item) => (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/20 backdrop-blur"
+              >
+                <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-200">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="flex-1">
+          <div className="relative rounded-3xl border border-white/15 bg-white/5 p-3 shadow-2xl shadow-indigo-900/40 backdrop-blur lg:ml-6">
+            <div className="absolute -left-6 -top-6 h-14 w-14 rounded-full bg-sky-400/60 blur-2xl" aria-hidden />
+            <div className="absolute -bottom-10 right-10 h-24 w-24 rounded-full bg-emerald-300/30 blur-3xl" aria-hidden />
+            <div className="overflow-hidden rounded-2xl border border-white/10">
+              <video
+                src="/Luma-project.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="h-full w-full object-cover"
+                aria-label="Demo LUMA in azione"
+              />
+            </div>
+            <div className="mt-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+                  Demo live
+                </p>
+                <p className="text-lg font-semibold text-white">
+                  Pronuncia, ritmo e coerenza valutati in tempo reale.
+                </p>
+              </div>
+              <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold uppercase text-emerald-200 ring-1 ring-emerald-200/40">
+                24/7
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className="relative mx-auto max-w-5xl px-6 pb-16">
+        <div className="grid gap-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-xl shadow-black/20 backdrop-blur sm:grid-cols-3">
+          {steps.map((step) => (
+            <div key={step.title} className="space-y-3">
+              <p className="text-sm font-semibold uppercase tracking-wide text-sky-200">
+                {step.title}
+              </p>
+              <p className="text-base leading-relaxed text-slate-100">{step.copy}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
