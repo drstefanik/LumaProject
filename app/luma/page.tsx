@@ -19,7 +19,9 @@ type ReportState = {
 
 export default function LumaSpeakingTestPage() {
   const [status, setStatus] = useState<Status>("idle");
-  const [log, setLog] = useState<string[]>([]);
+  const [statusMessage, setStatusMessage] = useState<string>(
+    "Ready to start"
+  );
   const [timer, setTimer] = useState<number>(0);
   const [report, setReport] = useState<ReportState | null>(null);
 
@@ -42,10 +44,6 @@ export default function LumaSpeakingTestPage() {
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
 
-  function appendLog(msg: string) {
-    setLog((prev) => [...prev, `${new Date().toLocaleTimeString()} – ${msg}`]);
-  }
-
   function startTimer() {
     if (timerRef.current) clearInterval(timerRef.current);
     setTimer(0);
@@ -59,9 +57,26 @@ export default function LumaSpeakingTestPage() {
     timerRef.current = null;
   }
 
+  function cleanupSession() {
+    dataChannelRef.current?.close();
+    dataChannelRef.current = null;
+
+    if (peerRef.current) {
+      peerRef.current.getSenders().forEach((sender) => {
+        sender.track?.stop();
+      });
+      peerRef.current.close();
+      peerRef.current = null;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.srcObject = null;
+    }
+  }
+
   useEffect(() => {
     return () => {
-      peerRef.current?.close();
+      cleanupSession();
       stopTimer();
     };
   }, []);
@@ -70,34 +85,38 @@ export default function LumaSpeakingTestPage() {
     try {
       if (!candidateFullName) {
         alert("Please enter candidate first and last name.");
-        appendLog("Missing candidate name.");
         return;
       }
       if (!email.trim()) {
         alert("Please enter candidate email.");
-        appendLog("Missing candidate email.");
         return;
       }
       if (!privacyAccepted) {
         alert("You must accept the privacy policy to start the test.");
-        appendLog("Privacy policy not accepted.");
         return;
       }
 
+      const projectId = process.env.NEXT_PUBLIC_OPENAI_PROJECT_ID;
+      if (!projectId) {
+        setStatusMessage("Missing project configuration.");
+        return;
+      }
+
+      const realtimeModel = "gpt-4o-realtime-preview-2024-12-17";
+
+      cleanupSession();
       setReport(null);
       reportBufferRef.current = "";
       setStatus("connecting");
-      appendLog("Requesting client secret from backend...");
+      setStatusMessage("Connecting to LUMA...");
 
       const res = await fetch("/api/voice/client-secret", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
       });
 
       if (!res.ok) {
-        appendLog("Error from backend creating client secret.");
         setStatus("idle");
+        setStatusMessage("Unable to contact LUMA backend.");
         return;
       }
 
@@ -105,13 +124,13 @@ export default function LumaSpeakingTestPage() {
       const clientSecret = json.client_secret as string | undefined;
 
       if (!clientSecret) {
-        appendLog("No client secret received.");
         setStatus("idle");
+        setStatusMessage("Missing client secret from backend.");
         return;
       }
 
-      appendLog("Acquiring microphone...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setStatusMessage("Microphone ready. Preparing call...");
 
       const pc = new RTCPeerConnection();
       peerRef.current = pc;
@@ -123,19 +142,16 @@ export default function LumaSpeakingTestPage() {
       pc.ontrack = (event) => {
         if (!audioRef.current) return;
         audioRef.current.srcObject = event.streams[0];
-        audioRef.current
-          .play()
-          .then(() => appendLog("Playing audio from LUMA."))
-          .catch(() => {});
+        audioRef.current.play().catch(() => {});
       };
 
       const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
 
       dc.onopen = () => {
-        appendLog("Data channel open. Configuring LUMA session...");
         setStatus("active");
         startTimer();
+        setStatusMessage("Speak now");
 
         const contextLines: string[] = [
           `The candidate's name is "${candidateFullName}".`,
@@ -183,14 +199,12 @@ export default function LumaSpeakingTestPage() {
         const sessionUpdate = {
           type: "session.update",
           session: {
-            type: "realtime",
-            model: "gpt-realtime",
+            model: realtimeModel,
             instructions,
           },
         };
 
         dc.send(JSON.stringify(sessionUpdate));
-        appendLog("Session configured. Start speaking in English!");
       };
 
       dc.onmessage = (event) => {
@@ -208,12 +222,6 @@ export default function LumaSpeakingTestPage() {
           }
 
           if (msg.type === "response.output_audio_transcript.done") {
-            const text =
-              (msg.output_audio_transcript &&
-                msg.output_audio_transcript.join("")) ||
-              msg.output_text ||
-              "";
-            if (text) appendLog(`LUMA: ${text}`);
             return;
           }
 
@@ -243,27 +251,22 @@ export default function LumaSpeakingTestPage() {
               }
 
               if (!fullText) {
-                appendLog("No written evaluation received from LUMA.");
                 setStatus("active");
+                setStatusMessage("No written evaluation received.");
                 return;
               }
 
-              appendLog("Final written evaluation received from LUMA.");
               processFinalReport(fullText);
               return;
             }
           }
 
-          if (msg.type === "session.created") {
-            appendLog("Session created.");
-          } else if (msg.type === "response.created") {
-            appendLog("Evaluation response created...");
-          } else if (msg.type === "response.done") {
-            appendLog("Evaluation response completed.");
-          } else if (msg.type === "error") {
-            appendLog("ERROR from Realtime API: " + msg.error?.message);
-          } else if (msg.type) {
-            appendLog("Event: " + msg.type);
+          if (msg.type === "error") {
+            const errorMessage = msg.error?.message || "Unknown error";
+            setStatus("idle");
+            setStatusMessage(errorMessage);
+            cleanupSession();
+            stopTimer();
           }
         } catch {
           // ignore non-JSON message
@@ -273,21 +276,26 @@ export default function LumaSpeakingTestPage() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      appendLog("Sending SDP offer to OpenAI Realtime API...");
-
-      const callRes = await fetch("https://api.openai.com/v1/realtime", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${clientSecret}`,
-          "Content-Type": "application/sdp",
-          "OpenAI-Beta": "realtime=v1",
-        },
-        body: offer.sdp || "",
-      });
+      const callRes = await fetch(
+        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(
+          realtimeModel
+        )}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${clientSecret}`,
+            "Content-Type": "application/sdp",
+            "OpenAI-Beta": "realtime=v1",
+            "OpenAI-Project": projectId,
+          },
+          body: offer.sdp || "",
+        }
+      );
 
       if (!callRes.ok) {
-        appendLog("Failed to create realtime call.");
         setStatus("idle");
+        setStatusMessage("Failed to create realtime call.");
+        cleanupSession();
         stopTimer();
         return;
       }
@@ -295,11 +303,12 @@ export default function LumaSpeakingTestPage() {
       const answerSdp = await callRes.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
 
-      appendLog("LUMA connected. Speak naturally in English.");
+      setStatusMessage("Speak now");
     } catch (err: any) {
       console.error(err);
-      appendLog("Error: " + (err?.message || "unknown"));
+      cleanupSession();
       setStatus("idle");
+      setStatusMessage(err?.message || "Unknown error");
       stopTimer();
     }
   }
@@ -307,12 +316,12 @@ export default function LumaSpeakingTestPage() {
   function requestFinalEvaluation() {
     const dc = dataChannelRef.current;
     if (!dc || dc.readyState !== "open") {
-      appendLog("Data channel not open. Cannot request evaluation.");
+      setStatusMessage("Connection lost. Cannot request evaluation.");
       return;
     }
 
     setStatus("evaluating");
-    appendLog("Requesting final written evaluation from LUMA...");
+    setStatusMessage("Generating evaluation...");
     reportBufferRef.current = "";
 
     const instructions =
@@ -365,7 +374,6 @@ export default function LumaSpeakingTestPage() {
       privacy_accepted: privacyAccepted,
     };
 
-    appendLog("Sending report to backend (Airtable)...");
     try {
       const resp = await fetch("/api/report", {
         method: "POST",
@@ -374,32 +382,28 @@ export default function LumaSpeakingTestPage() {
       });
 
       if (!resp.ok) {
-        const t = await resp.text();
-        appendLog("Error saving report: " + t);
-      } else {
-        appendLog("Report saved to Airtable (if configured).");
+        console.error("Error saving report", await resp.text());
       }
     } catch (e: any) {
-      appendLog(
-        "Network error while saving report: " + (e?.message || "unknown")
-      );
+      console.error("Network error while saving report", e);
     } finally {
-      setStatus("active");
+      cleanupSession();
+      setStatus("idle");
+      setStatusMessage("Evaluation ready");
+      stopTimer();
     }
   }
 
   function stopTest() {
-    appendLog("Stop pressed. Asking LUMA for final evaluation...");
     stopTimer();
     requestFinalEvaluation();
   }
 
   function hardCloseSession() {
-    peerRef.current?.close();
-    peerRef.current = null;
+    cleanupSession();
     setStatus("idle");
     stopTimer();
-    appendLog("Session closed.");
+    setStatusMessage("Session closed");
   }
 
   const minutes = String(Math.floor(timer / 60)).padStart(2, "0");
@@ -636,15 +640,12 @@ export default function LumaSpeakingTestPage() {
                     <span className="rounded-full bg-white/10 px-3 py-1 font-semibold text-white">
                       {minutes}:{seconds}
                     </span>
-                    <p className="text-slate-300">
-                      Keep this tab active. LUMA speaks only in English.
-                    </p>
+                    <p className="text-slate-200">{statusMessage}</p>
                   </div>
                   <audio ref={audioRef} className="hidden" />
                 </div>
-              </div>
-            </section>
-          </div>
+              </section>
+            </div>
 
           {/* right column */}
           <aside className="flex flex-col gap-6">

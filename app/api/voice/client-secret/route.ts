@@ -28,14 +28,12 @@ export async function POST() {
             seconds: 600,
           },
         },
-        input_audio_format: "pcm16",
-        output_audio_format: "pcm16",
-        voice: "sage",
-        model: "gpt-4o-realtime-preview",
+        model: "gpt-4o-realtime-preview-2024-12-17",
       },
       {
         headers: {
           "OpenAI-Beta": "realtime=v1",
+          "OpenAI-Project": projectId,
         },
       }
     );
