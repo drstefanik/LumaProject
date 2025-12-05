@@ -29,12 +29,9 @@ export async function POST(req: NextRequest) {
           seconds: 600, // token valido 10 minuti
         },
         session: {
-          type: "realtime",
           model: "gpt-4o-realtime-preview",
-          audio: {
-            output_audio_format: "pcm16",
-            voice: "sage",
-          },
+          output_audio_format: "pcm16",
+          voice: "sage",
         },
       }),
     });
