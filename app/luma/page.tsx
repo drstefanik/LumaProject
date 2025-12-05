@@ -282,7 +282,7 @@ EVALUATION & REPORT
       appendLog("Sending SDP offer to OpenAI Realtime API...");
 
       const callRes = await fetch(
-        "https://api.openai.com/v1/realtime/calls?model=gpt-realtime",
+        "https://api.openai.com/v1/realtime?model=gpt-realtime-preview",
         {
           method: "POST",
           headers: {
@@ -290,9 +290,10 @@ EVALUATION & REPORT
             "Content-Type": "application/sdp",
             "OpenAI-Beta": "realtime=v1",
           },
-          body: offer.sdp ?? "",
+          body: offer.sdp || "",
         }
       );
+
 
       if (!callRes.ok) {
         appendLog("Failed to create realtime call.");
