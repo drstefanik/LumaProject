@@ -141,27 +141,26 @@ export default function LumaSpeakingTestPage() {
         setStatus("active");
         startTimer();
 
-        const sessionUpdate = {
-          type: "session.update",
-          session: {
-            type: "realtime",
-            model: "gpt-realtime",
-            instructions:
-              "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI. " +
-              `The candidate's name is "${candidateFullName}". ` +
-              (nativeLanguage
-                ? `The candidate's native language is ${nativeLanguage}. `
-                : "") +
-              (country ? `The candidate is currently in ${country}. ` : "") +
-              (testPurpose
-                ? `The purpose of this test is: ${testPurpose}. `
-                : "") +
-              "Conduct a realistic English speaking exam (placement / proficiency). Ask questions, keep the conversation natural, " +
-              "and do NOT give the final evaluation or explicit score during the conversation. " +
-              "Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'. " +
-              "Only then you must produce a structured written evaluation in JSON, without speaking it aloud.",
-          },
-        };
+const sessionUpdate = {
+  type: "session.update",
+  session: {
+    type: "realtime",
+    model: "gpt-realtime",
+
+    // Usa il prompt salvato su OpenAI
+    prompt: {
+      id: "pmpt_693315189ff8819599b34f43a3aa97b30602c504a5e62400",
+      version: "1"
+    },
+
+    // Parametri opzionali (ma consigliati)
+    voice: "marin",
+    input_audio_transcription: {
+      model: "whisper-1"
+    }
+  }
+};
+
 
         dc.send(JSON.stringify(sessionUpdate));
         appendLog("Session configured. Start speaking in English!");
