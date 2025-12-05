@@ -1,10 +1,10 @@
-// app/api/client-secret/route.ts
+// app/api/voice/client-secret/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 60;
 
 const apiKey = process.env.OPENAI_API_KEY;
-const projectId = process.env.OPENAI_PROJECT_ID as string; // 👈 forziamo il tipo a string
+const projectId = process.env.OPENAI_PROJECT_ID as string;
 
 if (!apiKey) {
   throw new Error("Missing OPENAI_API_KEY environment variable");
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "OpenAI-Project": projectId,        // ora è string, niente union
+        "OpenAI-Project": projectId,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -30,9 +30,24 @@ export async function POST(req: NextRequest) {
         },
         session: {
           type: "realtime",
-          model: "gpt-realtime",
-          // niente prompt qui: lo settiamo dal client con session.update
-          // instructions: "You are LUMA, the AI speaking examiner for British Institutes.",
+
+          // MODELLO CORRETTO PER AUDIO E WEBRTC
+          model: "gpt-4o-realtime-preview",
+
+          // NECESSARIO: senza questo OpenAI rifiuta con 400
+          modalities: ["audio", "text"],
+
+          // Config audio per input/output
+          audio: {
+            input_audio_format: "pcm16",    // richiesto
+            output_audio_format: "pcm16",   // richiesto
+            voice: "sage"                    // o marin, alloy...
+          },
+
+          // trascrizione voce utente
+          input_audio_transcription: {
+            model: "whisper-1",
+          }
         },
       }),
     });
@@ -47,13 +62,10 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await res.json();
-    // /realtime/client_secrets restituisce { value, expires_at, session }
-    const clientSecret = data.value;
-    const expiresAt = data.expires_at;
 
     return NextResponse.json({
-      client_secret: clientSecret,
-      expires_at: expiresAt,
+      client_secret: data.value,
+      expires_at: data.expires_at,
     });
   } catch (err) {
     console.error("Internal error creating client secret:", err);
