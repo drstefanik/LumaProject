@@ -46,9 +46,11 @@ export async function POST(_req: NextRequest) {
     }
 
     const data = await res.json();
+
     return NextResponse.json({
-      client_secret: data.client_secret?.value,
-      expires_at: data.client_secret?.expires_at
+      client_secret: data.value,
+      expires_at: data.expires_at,
+      session: data.session
     });
   } catch (err) {
     console.error("Internal error:", err);
@@ -58,3 +60,4 @@ export async function POST(_req: NextRequest) {
     );
   }
 }
+
