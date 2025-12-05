@@ -5,6 +5,52 @@ const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_REPORT_TABLE =
   process.env.AIRTABLE_REPORT_TABLE || "LUMASpeakingReports";
 
+export async function GET() {
+  try {
+    if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_REPORT_TABLE) {
+      console.error("Missing Airtable env vars");
+      return NextResponse.json(
+        { ok: false, error: "Airtable not configured" },
+        { status: 500 }
+      );
+    }
+
+    const res = await fetch(
+      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
+        AIRTABLE_REPORT_TABLE
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Airtable error:", text);
+      return NextResponse.json(
+        { ok: false, error: "airtable_error", details: text },
+        { status: 500 }
+      );
+    }
+
+    const data = await res.json();
+    const reports = (data.records || []).map((rec: any) => ({
+      id: rec.id,
+      ...rec.fields,
+    }));
+
+    return NextResponse.json({ ok: true, reports });
+  } catch (err: any) {
+    console.error(err);
+    return NextResponse.json(
+      { ok: false, error: err?.message || "unknown" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_REPORT_TABLE) {
