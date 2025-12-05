@@ -458,24 +458,25 @@ export default function LumaSpeakingTestPage() {
                   </div>
                 </div>
 
-                {/* Premium Siri-style Orb */}
-                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-4 shadow-xl shadow-indigo-900/50">
-                  <div className="relative flex h-40 w-full items-center justify-center rounded-xl bg-gradient-to-b from-slate-950 to-black overflow-hidden">
-                    {/* outer pulsing wave */}
-                    <div className="absolute h-48 w-48 rounded-full bg-gradient-to-r from-fuchsia-500/20 via-sky-400/20 to-purple-500/20 animate-ping" />
-                    {/* soft glow */}
-                    <div className="absolute h-36 w-36 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 blur-xl opacity-60" />
-                    {/* main orb */}
-                    <div className="relative h-24 w-24 rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-300 to-purple-300 shadow-[0_0_40px_rgba(236,72,153,0.8)] animate-pulse" />
-                    {/* thin ring */}
-                    <div className="absolute h-32 w-32 rounded-full border border-fuchsia-300/40 animate-pulse opacity-50" />
-                  </div>
+                {/* LUMA GIF listening field */}
+<div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-2 shadow-xl shadow-indigo-900/50">
+  <div className="relative h-40 w-full overflow-hidden rounded-xl bg-black">
+    {/* GIF di LUMA dal folder /public */}
+    <img
+      src="/Luma-project.gif"
+      alt="LUMA listening animation"
+      className="h-full w-full object-cover"
+    />
 
-                  <p className="relative mt-3 text-center text-[11px] text-slate-200">
-                    LUMA listening field
-                  </p>
-                </div>
-              </div>
+    {/* leggero gradient ai bordi per integrarla nel tema dark */}
+    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50" />
+  </div>
+
+  <p className="relative mt-3 text-center text-[11px] text-slate-200">
+    LUMA listening field
+  </p>
+</div>
+
 
               {/* form fields */}
               <div className="mt-6 grid gap-3 text-xs text-slate-100 md:grid-cols-2">
