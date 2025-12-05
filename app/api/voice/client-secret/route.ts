@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
           type: "realtime",
           model: "gpt-4o-realtime-preview",
           audio: {
-            input_audio_format: "pcm16",
             output_audio_format: "pcm16",
             voice: "sage",
           },
