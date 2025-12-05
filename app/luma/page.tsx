@@ -608,7 +608,7 @@ export default function LumaSpeakingTestPage() {
 
             <audio ref={audioRef} autoPlay />
 
-            {/* LOG */}
+{/* Log hidden */}
             <div className="mt-4 h-56 w-full overflow-auto rounded-xl border border-white/10 bg-black/60 p-3 text-[11px] font-mono text-slate-200">
               {log.map((l, i) => (
                 <div key={i}>{l}</div>
