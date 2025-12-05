@@ -137,34 +137,48 @@ export default function LumaSpeakingTestPage() {
         setStatus("active");
         startTimer();
 
-        const instructions = `
-You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI.
+        const contextLines: string[] = [
+          `The candidate's name is "${candidateFullName}".`,
+        ];
 
-The candidate's name is "${candidateFullName}".
-${nativeLanguage ? `The candidate's native language is ${nativeLanguage}.` : ""}
-${country ? `The candidate is currently in ${country}.` : ""}
-${testPurpose ? `The purpose of this test is: ${testPurpose}.` : ""}
+        if (nativeLanguage) {
+          contextLines.push(
+            `The candidate's native language is ${nativeLanguage}.`
+          );
+        }
 
-ROLE
-- You conduct a realistic English speaking exam (placement / proficiency).
-- Ask questions, keep the conversation natural, and listen carefully.
-- Do NOT give the final evaluation or explicit score during the conversation.
+        if (country) {
+          contextLines.push(`The candidate is currently in ${country}.`);
+        }
 
-LANGUAGE
-- You MUST ALWAYS speak ONLY in English.
-- You MUST NEVER speak Italian or any other language.
-- If the candidate uses another language, say briefly in English:
-  "Please answer in English. This speaking test must be completed in English only."
+        if (testPurpose) {
+          contextLines.push(`The purpose of this test is: ${testPurpose}.`);
+        }
 
-INTERACTION
-- Ask one question at a time and wait.
-- If you do not understand, say: "I'm sorry, could you repeat that in English, please?"
-- If the candidate is silent, say: "Take your time. Please answer in English when you are ready."
-
-EVALUATION
-- Do not mention CEFR levels, scores or bands during the conversation.
-- Wait for a "response.create" event with metadata.purpose = "speaking_report" before you generate a JSON report.
-        `.trim();
+        const instructions = [
+          "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI.",
+          "",
+          ...contextLines,
+          "",
+          "ROLE",
+          "- You conduct a realistic English speaking exam (placement / proficiency).",
+          "- Ask questions, keep the conversation natural, and listen carefully.",
+          "- Do NOT give the final evaluation or explicit score during the conversation.",
+          "",
+          "LANGUAGE",
+          "- You MUST ALWAYS speak ONLY in English.",
+          "- You MUST NEVER speak Italian or any other language.",
+          '- If the candidate uses another language, say briefly in English: "Please answer in English. This speaking test must be completed in English only."',
+          "",
+          "INTERACTION",
+          "- Ask one question at a time and wait.",
+          '- If you do not understand, say: "I\'m sorry, could you repeat that in English, please?"',
+          '- If the candidate is silent, say: "Take your time. Please answer in English when you are ready."',
+          "",
+          "EVALUATION",
+          "- Do not mention CEFR levels, scores or bands during the conversation.",
+          '- Wait for a "response.create" event with metadata.purpose = "speaking_report" before you generate a JSON report.',
+        ].join("\n");
 
         const sessionUpdate = {
           type: "session.update",
@@ -444,42 +458,17 @@ EVALUATION
                   </div>
                 </div>
 
-                {/* SIRI-LIKE FIELD */}
-                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-black/60 p-2 shadow-lg shadow-indigo-900/40">
-                  <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl bg-gradient-to-b from-slate-950 via-slate-950 to-black">
-                    {/* orb */}
-                    <div className="relative h-20 w-20">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-sky-400 via-fuchsia-500 to-purple-500 opacity-60 blur-md" />
-                      <div className="absolute inset-0 rounded-full border border-sky-300/40 animate-ping opacity-60" />
-                      <div className="absolute inset-[6px] rounded-full bg-gradient-to-r from-sky-300 via-fuchsia-400 to-purple-400 shadow-[0_0_35px_rgba(244,114,182,0.9)]" />
-                    </div>
-
-                    {/* bars */}
-                    <div className="absolute bottom-4 flex gap-1.5">
-                      <span
-                        className="h-3 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
-                        style={{ animationDuration: "1.1s" }}
-                      />
-                      <span
-                        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
-                        style={{ animationDuration: "0.9s", animationDelay: "0.1s" }}
-                      />
-                      <span
-                        className="h-9 w-1.5 rounded-full bg-purple-300/90 animate-pulse"
-                        style={{ animationDuration: "1.2s", animationDelay: "0.2s" }}
-                      />
-                      <span
-                        className="h-6 w-1.5 rounded-full bg-fuchsia-300/90 animate-pulse"
-                        style={{ animationDuration: "0.95s", animationDelay: "0.15s" }}
-                      />
-                      <span
-                        className="h-4 w-1.5 rounded-full bg-sky-300/80 animate-pulse"
-                        style={{ animationDuration: "1.05s", animationDelay: "0.05s" }}
-                      />
-                    </div>
+                {/* LUMA GIF listening field */}
+                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-2 shadow-xl shadow-indigo-900/50">
+                  <div className="relative h-40 w-full overflow-hidden rounded-xl bg-black">
+                    <img
+                      src="/Luma-project.gif"
+                      alt="LUMA listening animation"
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50" />
                   </div>
-
-                  <p className="relative mt-2 text-[11px] text-slate-200">
+                  <p className="relative mt-3 text-center text-[11px] text-slate-200">
                     LUMA listening field
                   </p>
                 </div>
