@@ -47,12 +47,10 @@ export default function LumaSpeakingTestPage() {
       const pc = new RTCPeerConnection();
       peerRef.current = pc;
 
-      // invio audio locale verso LUMA
       stream.getAudioTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
 
-      // ricezione audio da LUMA
       pc.ontrack = (event) => {
         if (!audioRef.current) return;
         audioRef.current.srcObject = event.streams[0];
@@ -61,12 +59,9 @@ export default function LumaSpeakingTestPage() {
           .then(() => {
             appendLog("Playing audio from LUMA.");
           })
-          .catch(() => {
-            /* ignore */
-          });
+          .catch(() => {});
       };
 
-      // data channel per eventi JSON (report finale, ecc.)
       const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
 
@@ -95,13 +90,11 @@ export default function LumaSpeakingTestPage() {
         }
       };
 
-      // creazione SDP offer WebRTC
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
       appendLog("Sending SDP offer to OpenAI Realtime API...");
 
-      // 👉 chiamata corretta: solo SDP come body, modello in query
       const callRes = await fetch(
         "https://api.openai.com/v1/realtime/calls?model=gpt-realtime",
         {
@@ -143,57 +136,122 @@ export default function LumaSpeakingTestPage() {
     appendLog("Session closed.");
   }
 
+  const statusLabel =
+    status === "idle"
+      ? "Ready"
+      : status === "connecting"
+      ? "Connecting to LUMA…"
+      : "LUMA is listening";
+
   return (
-    <main className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden">
-      {/* Background video */}
-      <video
-        className="absolute inset-0 w-full h-full object-cover opacity-40"
-        src="/Luma-project.mp4"  // assicurati che il nome del file sia identico
-        autoPlay
-        loop
-        muted
-        playsInline
-      />
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      {/* 🔮 Background video */}
+<video
+  className="fixed inset-0 w-full h-full object-cover opacity-40 pointer-events-none"
+  src="/Luma-project.mp4"
+  autoPlay
+  loop
+  muted
+  playsInline
+/>
 
-      {/* Gradient overlay for readability */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60" />
 
-      {/* Foreground content */}
-      <div className="relative z-10 max-w-2xl w-full p-6">
-        <h1 className="text-4xl font-bold text-white text-center drop-shadow-lg">
-          LUMA – Speaking Test
-        </h1>
+      {/* Neon / nebula overlay */}
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(236,72,153,0.55),transparent_55%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.45),transparent_55%)] mix-blend-screen pointer-events-none" />
 
-        <p className="text-sm text-slate-200 text-center mt-2 drop-shadow">
-          When you click start, LUMA will talk to you in English and evaluate
-          your speaking skills. Please use a good microphone and speak clearly.
-        </p>
+      {/* Dark veil for contrast */}
+      <div className="fixed inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/80 pointer-events-none" />
 
-        <div className="flex gap-3 justify-center mt-6">
-          <button
-            onClick={startTest}
-            disabled={status !== "idle"}
-            className="px-5 py-2 rounded-lg bg-pink-600 text-white font-semibold shadow-lg hover:bg-pink-700 disabled:opacity-40"
-          >
-            Start test
-          </button>
+      {/* Content */}
+      <div className="relative z-10 flex items-center justify-center min-h-screen px-4">
+        <div className="w-full max-w-4xl rounded-3xl bg-black/40 border border-white/15 backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.75)] px-8 py-10 space-y-8">
+          {/* Header */}
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-xs font-medium tracking-wide border border-white/20">
+              <span className="h-2 w-2 rounded-full bg-fuchsia-400 animate-pulse" />
+              LUMA · Language Understanding Mastery Assistant
+            </div>
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight drop-shadow-lg">
+              LUMA – Speaking Test
+            </h1>
+            <p className="max-w-2xl text-sm md:text-base text-slate-200/90">
+              When you click <span className="font-semibold">Start test</span>,
+              LUMA will talk to you in English and evaluate your speaking
+              skills. Use a good microphone, speak naturally, and imagine you
+              are in a real exam.
+            </p>
+          </div>
 
-          <button
-            onClick={stopTest}
-            disabled={status === "idle"}
-            className="px-5 py-2 rounded-lg bg-white/20 text-white font-semibold backdrop-blur hover:bg-white/30 disabled:opacity-40"
-          >
-            Stop
-          </button>
-        </div>
+          {/* Controls */}
+          <div className="flex flex-col items-center gap-6">
+            {/* Mic button with glow */}
+            <div className="relative flex items-center justify-center">
+              {/* Pulsing ring when active */}
+              {status !== "idle" && (
+                <span className="absolute h-32 w-32 rounded-full bg-fuchsia-500/40 blur-xl animate-ping" />
+              )}
+              <button
+                onClick={startTest}
+                disabled={status !== "idle"}
+                className="relative h-24 w-24 md:h-28 md:w-28 rounded-full bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500 shadow-xl shadow-fuchsia-700/40 flex items-center justify-center border border-white/40 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="sr-only">Start speaking test</span>
+                {/* Simple mic icon */}
+                <div className="flex flex-col items-center">
+                  <div className="h-8 w-4 rounded-full bg-white/90 mb-1" />
+                  <div className="h-1.5 w-6 rounded-full bg-white/80" />
+                </div>
+              </button>
+            </div>
 
-        <audio ref={audioRef} autoPlay />
+            {/* Start / Stop buttons + status */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={startTest}
+                  disabled={status !== "idle"}
+                  className="px-6 py-2.5 rounded-full bg-pink-500 text-sm font-semibold shadow-lg shadow-pink-700/40 hover:bg-pink-600 disabled:opacity-40"
+                >
+                  Start test
+                </button>
+                <button
+                  onClick={stopTest}
+                  disabled={status === "idle"}
+                  className="px-6 py-2.5 rounded-full bg-white/10 text-sm font-semibold text-slate-100 border border-white/20 hover:bg-white/15 disabled:opacity-40"
+                >
+                  Stop
+                </button>
+              </div>
 
-        {/* Log panel */}
-        <div className="mt-6 w-full text-xs bg-black/40 backdrop-blur border border-white/20 text-white rounded p-3 h-60 overflow-auto shadow-inner">
-          {log.map((l, i) => (
-            <div key={i}>{l}</div>
-          ))}
+              <div className="flex items-center gap-2 text-xs text-slate-200/90">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    status === "active"
+                      ? "bg-emerald-400 animate-pulse"
+                      : status === "connecting"
+                      ? "bg-amber-300 animate-pulse"
+                      : "bg-slate-400"
+                  }`}
+                />
+                <span>{statusLabel}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Hidden audio element */}
+          <audio ref={audioRef} autoPlay />
+
+          {/* Log panel */}
+          <div className="mt-4 rounded-2xl border border-white/15 bg-black/50 backdrop-blur-xl p-4 h-60 overflow-auto text-[11px] font-mono text-slate-100 shadow-inner shadow-black/60">
+            {log.length === 0 ? (
+              <div className="text-slate-400/80">
+                Logs will appear here when the test starts (connection status,
+                events from LUMA, report saving, etc.).
+              </div>
+            ) : (
+              log.map((l, i) => <div key={i}>{l}</div>)
+            )}
+          </div>
         </div>
       </div>
     </main>
