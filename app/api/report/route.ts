@@ -16,13 +16,30 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const parsed = body.parsed || {};
 
-    // Mappiamo il JSON di LUMA sui campi della tua tabella
+    const parsed = body.parsed || {};
+    const createdAt: string =
+      body.created_at || new Date().toISOString();
+
+    const candidateName: string =
+      body.candidate_name ||
+      body.candidateName ||
+      parsed.candidate_name ||
+      parsed.name ||
+      "";
+
+    const candidateEmail: string =
+      body.candidate_email ||
+      body.candidateEmail ||
+      parsed.candidate_email ||
+      "";
+
+    // Mappiamo il JSON di LUMA + dati form sui campi Airtable
     const fields: Record<string, any> = {
       CandidateId: parsed.candidate_id || "",
-      Name: parsed.candidate_name || parsed.name || "",
-      DateTime: body.created_at || new Date().toISOString(),
+      Name: candidateName,
+      CandidateEmail: candidateEmail,
+      DateTime: createdAt,
       Status: parsed.status || "Completed",
       Selected: parsed.selected ?? false,
       AccentDetected: parsed.accent || parsed.accent_detected || "",
@@ -44,7 +61,10 @@ export async function POST(req: NextRequest) {
         parsed.pronunciation ??
         null,
       Score_Grammar:
-        parsed.score_grammar ?? parsed.grammar_score ?? parsed.grammar ?? null,
+        parsed.score_grammar ??
+        parsed.grammar_score ??
+        parsed.grammar ??
+        null,
       Score_Vocabulary:
         parsed.score_vocabulary ??
         parsed.vocabulary_score ??
@@ -55,12 +75,18 @@ export async function POST(req: NextRequest) {
         parsed.coherence_score ??
         parsed.coherence ??
         null,
-      Strengths: (parsed.strengths || []).join("; "),
-      Weaknesses: (parsed.weaknesses || []).join("; "),
-      Recommendations: (parsed.recommendations || []).join("; "),
+      Strengths: Array.isArray(parsed.strengths)
+        ? parsed.strengths.join("; ")
+        : parsed.strengths || "",
+      Weaknesses: Array.isArray(parsed.weaknesses)
+        ? parsed.weaknesses.join("; ")
+        : parsed.weaknesses || "",
+      Recommendations: Array.isArray(parsed.recommendations)
+        ? parsed.recommendations.join("; ")
+        : parsed.recommendations || "",
       RawTranscript:
         parsed.raw_transcript || body.transcript || body.rawText || "",
-      LanguagePair: parsed.language_pair || "EN-??"
+      LanguagePair: parsed.language_pair || "EN-??",
     };
 
     const res = await fetch(
@@ -71,11 +97,11 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: {
           Authorization: `Bearer ${AIRTABLE_API_KEY}`,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          records: [{ fields }]
-        })
+          records: [{ fields }],
+        }),
       }
     );
 
