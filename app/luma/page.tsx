@@ -15,7 +15,7 @@ type ReportState = {
     recommendations?: string[];
     overall_comment?: string;
   };
-}; 
+};
 
 export default function LumaSpeakingTestPage() {
   const [status, setStatus] = useState<Status>("idle");
@@ -23,7 +23,7 @@ export default function LumaSpeakingTestPage() {
   const [timer, setTimer] = useState<number>(0);
   const [report, setReport] = useState<ReportState | null>(null);
 
-  // ---- form registrazione candidato ----
+  // ---- candidate registration form ----
   const [firstName, setFirstName] = useState<string>("");
   const [lastName, setLastName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
@@ -38,7 +38,7 @@ export default function LumaSpeakingTestPage() {
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // buffer per il testo del report che arriva in streaming
+  // buffer for the streamed report text
   const reportBufferRef = useRef<string>("");
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
@@ -69,7 +69,7 @@ export default function LumaSpeakingTestPage() {
 
   async function startTest() {
     try {
-      // validazione form
+      // form validation
       if (!candidateFullName) {
         alert("Please enter candidate first name and last name.");
         appendLog("Please enter candidate first name and last name.");
@@ -141,12 +141,12 @@ export default function LumaSpeakingTestPage() {
         setStatus("active");
         startTimer();
 
-const sessionUpdate = {
-  type: "session.update",
-  session: {
-    type: "realtime",
-    model: "gpt-realtime",
-    instructions: `
+        const sessionUpdate = {
+          type: "session.update",
+          session: {
+            type: "realtime",
+            model: "gpt-realtime",
+            instructions: `
 You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI.
 
 The candidate's name is "${candidateFullName}".
@@ -183,10 +183,8 @@ EVALUATION & REPORT
 - Wait until you receive a 'response.create' event whose response.metadata.purpose is 'speaking_report'.
 - Only then produce a structured written evaluation in JSON, but NEVER read it aloud or reveal it to the candidate.
 `,
-  },
-};
-
-
+          },
+        };
 
         dc.send(JSON.stringify(sessionUpdate));
         appendLog("Session configured. Start speaking in English!");
@@ -363,7 +361,7 @@ const callRes = await fetch(
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      // se non è JSON valido, lo teniamo come testo grezzo
+      // if the payload is not valid JSON, keep raw text
     }
 
     const payload = {
@@ -432,49 +430,71 @@ const callRes = await fetch(
   const isEvaluating = status === "evaluating";
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-black text-white">
-      {/* VIDEO DI SFONDO */}
-      <video
-        className="pointer-events-none fixed inset-0 h-full w-full object-cover opacity-40"
-        src="/Luma-project.mp4"
-        autoPlay
-        loop
-        muted
-        playsInline
-      />
-      <div className="pointer-events-none fixed inset-0 bg-gradient-to-b from-black/80 via-black/80 to-black/95" />
+    <main className="relative isolate min-h-screen overflow-hidden bg-slate-950 text-slate-50">
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" />
+        <div className="absolute -left-16 -top-24 h-72 w-72 rounded-full bg-sky-500/30 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-96 w-96 rounded-full bg-indigo-500/25 blur-3xl" />
+        <div className="absolute -right-20 top-10 h-72 w-72 rounded-full bg-teal-400/25 blur-3xl" />
+      </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-6 py-10">
-        {/* HEADER */}
-        <div className="flex items-center gap-3 text-sm text-pink-300">
-          <span className="flex h-8 items-center rounded-full bg-pink-600/20 px-3 font-semibold">
-            <span className="mr-2 h-2 w-2 rounded-full bg-pink-400 shadow-[0_0_10px_rgba(244,114,182,0.9)]" />
-            LUMA · Language Understanding Mastery Assistant
-          </span>
+      <div className="relative mx-auto max-w-6xl px-6 py-12 space-y-8">
+        <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-sky-100 ring-1 ring-white/15">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+          British Institutes · Speaking Examiner
         </div>
 
-        <section className="mt-2 grid gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          {/* COLONNA SINISTRA */}
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="flex flex-col gap-6">
-            <header className="space-y-3">
-              <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">
-                LUMA – Speaking Test
-              </h1>
-              <p className="max-w-xl text-sm text-slate-200/90">
-                Register the candidate and then click{" "}
-                <span className="font-semibold">Start test</span> to begin a
-                live speaking session with LUMA. At the end, LUMA will generate
-                a structured report on the candidate&apos;s performance.
-              </p>
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/50 backdrop-blur">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
+                  <h1 className="text-4xl font-black leading-tight sm:text-5xl">
+                    LUMA Speaking Test
+                  </h1>
+                  <p className="max-w-2xl text-sm leading-relaxed text-slate-200">
+                    Register the candidate, start the live conversation, and let LUMA score pronunciation, rhythm, and coherence in real time.
+                  </p>
+                  <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-1 text-emerald-100 ring-1 ring-emerald-300/40">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                      {status === "idle"
+                        ? "Ready to start"
+                        : status === "connecting"
+                          ? "Connecting to LUMA"
+                          : status === "active"
+                            ? "Live session"
+                            : "Generating report"}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-white ring-1 ring-white/20">
+                      ⏱ {minutes}:{seconds}
+                    </span>
+                  </div>
+                </div>
+                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/15 bg-white/5 p-2 shadow-lg shadow-indigo-900/40">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/15 via-indigo-500/10 to-transparent" />
+                  <video
+                    src="/Luma-project.mp4"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="relative h-36 w-full rounded-xl object-cover"
+                    aria-label="LUMA demo clip"
+                  />
+                  <p className="relative mt-2 text-[11px] text-slate-200">
+                    Instant scoring preview
+                  </p>
+                </div>
+              </div>
 
-              {/* FORM REGISTRAZIONE */}
-              <div className="mt-4 grid gap-3 text-xs text-slate-200 md:grid-cols-2">
+              <div className="mt-6 grid gap-3 text-xs text-slate-100 md:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
                     First name *
                   </label>
                   <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     placeholder="John"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
@@ -486,7 +506,7 @@ const callRes = await fetch(
                     Last name *
                   </label>
                   <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     placeholder="Smith"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
@@ -498,7 +518,7 @@ const callRes = await fetch(
                     Email *
                   </label>
                   <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     placeholder="candidate@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -512,7 +532,7 @@ const callRes = await fetch(
                   </label>
                   <input
                     type="date"
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     value={birthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
                     disabled={!isIdle}
@@ -523,7 +543,7 @@ const callRes = await fetch(
                     Native language
                   </label>
                   <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     placeholder="Italian, Spanish, Arabic..."
                     value={nativeLanguage}
                     onChange={(e) => setNativeLanguage(e.target.value)}
@@ -535,7 +555,7 @@ const callRes = await fetch(
                     Country
                   </label>
                   <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     placeholder="Italy, UAE, Spain..."
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
@@ -550,7 +570,7 @@ const callRes = await fetch(
                     Purpose of the test
                   </label>
                   <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-pink-500/40 focus:border-pink-400 focus:ring"
+                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
                     placeholder="Placement, certification, work, university..."
                     value={testPurpose}
                     onChange={(e) => setTestPurpose(e.target.value)}
@@ -561,7 +581,7 @@ const callRes = await fetch(
                 <label className="mt-2 flex items-start gap-2 text-[11px] text-slate-300">
                   <input
                     type="checkbox"
-                    className="mt-[2px]"
+                    className="mt-[2px] accent-sky-400"
                     checked={privacyAccepted}
                     onChange={(e) => setPrivacyAccepted(e.target.checked)}
                     disabled={!isIdle}
@@ -571,7 +591,7 @@ const callRes = await fetch(
                     <a
                       href="/luma/privacy"
                       target="_blank"
-                      className="text-pink-300 underline"
+                      className="text-sky-200 underline"
                     >
                       LUMA Privacy Policy
                     </a>
@@ -579,160 +599,153 @@ const callRes = await fetch(
                   </span>
                 </label>
               </div>
-            </header>
+            </section>
 
-            {/* microfono + pulsanti */}
-            <div className="flex items-center gap-8">
-              <div className="relative flex h-40 w-40 items-center justify-center">
-                <div className="absolute h-40 w-40 rounded-full bg-pink-500/20 blur-xl" />
-                <div className="absolute h-32 w-32 animate-pulse rounded-full border border-pink-400/60" />
-                <div className="absolute h-28 w-28 rounded-full bg-gradient-to-b from-pink-500 to-fuchsia-600 shadow-[0_0_30px_rgba(236,72,153,0.9)]" />
-                <span className="relative text-4xl">🎙️</span>
-              </div>
-
-              <div className="flex flex-1 flex-col gap-3">
-                <div className="flex gap-3">
-                  <button
-                    onClick={startTest}
-                    disabled={!isIdle}
-                    className="flex-1 rounded-full bg-pink-600 px-6 py-3 text-sm font-semibold shadow-lg shadow-pink-500/40 transition hover:bg-pink-500 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {isConnecting ? "Connecting..." : "Start test"}
-                  </button>
-
-                  <button
-                    onClick={stopTest}
-                    disabled={!isActive}
-                    className="flex-1 rounded-full bg-slate-700/70 px-6 py-3 text-sm font-semibold text-slate-200 shadow transition hover:bg-slate-600/80 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Stop (get report)
-                  </button>
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/50 backdrop-blur">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+                <div className="relative flex h-28 w-28 items-center justify-center self-start lg:self-center">
+                  <div className="absolute h-28 w-28 rounded-full bg-sky-500/20 blur-xl" />
+                  <div className="absolute h-24 w-24 animate-pulse rounded-full border border-sky-400/60" />
+                  <div className="absolute h-20 w-20 rounded-full bg-gradient-to-b from-sky-500 to-indigo-600 shadow-[0_0_30px_rgba(56,189,248,0.6)]" />
+                  <span className="relative text-3xl">🎙️</span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-slate-300/80">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        isActive
-                          ? "bg-emerald-400"
-                          : isEvaluating
-                          ? "bg-amber-400"
-                          : "bg-slate-500"
-                      }`}
-                    />
-                    <span>
-                      {isActive && "Status: Live"}
-                      {isEvaluating && "Status: Generating report..."}
-                      {isIdle && "Status: Ready"}
-                      {isConnecting && "Status: Connecting..."}
+                <div className="flex-1 space-y-3 text-sm text-slate-100">
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={startTest}
+                      disabled={!isIdle}
+                      className="flex-1 rounded-full bg-sky-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:-translate-y-0.5 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {isConnecting ? "Connecting..." : "Start test"}
+                    </button>
+                    <button
+                      onClick={stopTest}
+                      disabled={!isActive}
+                      className="flex-1 rounded-full border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-100 transition hover:-translate-y-0.5 hover:border-white hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {isEvaluating ? "Evaluating..." : "Stop"}
+                    </button>
+                  </div>
+                  <button
+                    onClick={hardCloseSession}
+                    className="w-full rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:border-white/40 hover:text-white"
+                  >
+                    Close session
+                  </button>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-[11px]">
+                    <span className="flex items-center gap-2 font-semibold text-sky-100">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-sky-300" />
+                      {status === "idle"
+                        ? "Ready"
+                        : status === "connecting"
+                          ? "Connecting"
+                          : status === "active"
+                            ? "Live"
+                            : "Evaluating"}
                     </span>
+                    <span className="rounded-full bg-white/10 px-3 py-1 font-semibold text-white">
+                      {minutes}:{seconds}
+                    </span>
+                    <p className="text-slate-300">Keep this tab active. LUMA speaks only in English.</p>
                   </div>
-                  <div>
-                    Timer: {minutes}:{seconds}
-                  </div>
+                  <audio ref={audioRef} className="hidden" />
                 </div>
               </div>
-            </div>
+            </section>
 
-            <audio ref={audioRef} autoPlay />
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/50 backdrop-blur">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-sky-200">Session log</h2>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-300">
+                  Live transcript
+                </span>
+              </div>
 
-{/* Log hidden */}
-            <div className="mt-4 h-56 w-full overflow-auto rounded-xl border border-white/10 bg-black/60 p-3 text-[11px] font-mono text-slate-200">
-              {log.map((l, i) => (
-                <div key={i}>{l}</div>
-              ))}
-            </div>
-
-            <button
-              onClick={hardCloseSession}
-              className="mt-2 self-end text-[11px] text-slate-400 underline-offset-2 hover:underline"
-            >
-              Force close session
-            </button>
+              <div className="mt-3 max-h-64 overflow-auto rounded-2xl border border-white/5 bg-black/40 p-3">
+                {log.length === 0 ? (
+                  <p className="text-[11px] text-slate-400">No events yet. Start the test to see the conversation.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {log.map((entry, idx) => (
+                      <li key={idx} className="text-[11px] text-slate-200">
+                        {entry}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
           </div>
 
-          {/* COLONNA DESTRA */}
-          <aside className="flex flex-col gap-4">
-            <div className="rounded-2xl border border-white/10 bg-black/70 p-5 text-xs text-slate-100 shadow-xl">
-              <h2 className="mb-2 text-sm font-semibold text-pink-300">
-                Session insights (live)
-              </h2>
-              <p className="mb-1">
-                <span className="text-slate-400">Status:</span>{" "}
-                {isActive && "Speaking exam in progress"}
-                {isEvaluating && "Waiting for AI evaluation"}
-                {isIdle && "Idle"}
-                {isConnecting && "Connecting"}
-              </p>
-              <p className="mb-1">
-                <span className="text-slate-400">Events logged:</span>{" "}
-                {log.length}
-              </p>
-              <p className="mb-4">
-                <span className="text-slate-400">Candidate:</span>{" "}
-                {report?.parsed?.candidate_name ||
-                  candidateFullName ||
-                  "—"}{" "}
-                {email && (
-                  <span className="text-slate-400">({email})</span>
-                )}
+          <aside className="flex flex-col gap-6">
+            <div className="overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-2xl shadow-indigo-900/40">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/10 via-indigo-500/5 to-transparent" />
+                <video
+                  src="/Luma-project.mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="h-56 w-full object-cover"
+                />
+              </div>
+              <div className="space-y-2 p-5 text-sm text-slate-200">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-sky-200">Live demo</p>
+                <p className="text-base font-semibold text-white">
+                  Pronunciation, rhythm, and coherence scored in real time.
+                </p>
+                <p className="text-[12px] leading-relaxed text-slate-300">
+                  The clip mirrors the homepage experience so candidates can preview how LUMA listens and prepares the final report.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/15 bg-white/5 p-5 shadow-2xl shadow-indigo-900/40 backdrop-blur">
+              <h3 className="text-sm font-semibold text-sky-200">Candidate</h3>
+              <p className="mt-1 text-base font-semibold text-white">
+                {candidateFullName || "—"}{" "}
+                {email && <span className="text-slate-400">({email})</span>}
               </p>
 
-              <h3 className="mb-1 text-xs font-semibold text-slate-300">
-                Tips for best results
-              </h3>
-              <ul className="space-y-1 text-[11px] text-slate-300">
-                <li>• Use headphones and a good microphone.</li>
-                <li>• Answer in full sentences, not just single words.</li>
-                <li>
-                  • Imagine you are in an official British Institutes
-                  speaking exam.
-                </li>
+              <h3 className="mb-1 mt-4 text-xs font-semibold text-slate-300">Tips for best results</h3>
+              <ul className="space-y-1 text-[12px] text-slate-300">
+                <li>• Use headphones and a clear microphone.</li>
+                <li>• Answer in full sentences, not single words.</li>
+                <li>• Imagine you are in an official British Institutes speaking exam.</li>
               </ul>
             </div>
 
-            {/* REPORT */}
-            <div className="rounded-2xl border border-pink-500/30 bg-black/80 p-5 text-xs text-slate-100 shadow-xl">
-              <h2 className="mb-2 text-sm font-semibold text-pink-300">
-                Final speaking report
-              </h2>
+            <div className="rounded-3xl border border-white/15 bg-white/5 p-5 text-sm text-slate-100 shadow-2xl shadow-indigo-900/40 backdrop-blur">
+              <h2 className="mb-2 text-sm font-semibold text-sky-200">Final speaking report</h2>
 
               {!report && (
-                <p className="text-[11px] text-slate-400">
-                  After you press{" "}
-                  <span className="font-semibold">Stop</span>, LUMA will
-                  generate here a structured written evaluation of the
-                  candidate&apos;s speaking performance.
+                <p className="text-[12px] text-slate-300">
+                  After you press <span className="font-semibold text-white">Stop</span>, LUMA will generate here a structured written evaluation of the candidate&apos;s speaking performance.
                 </p>
               )}
 
               {report && (
-                <div className="space-y-3 text-[11px]">
+                <div className="space-y-3 text-[12px]">
                   {report.parsed ? (
                     <>
                       {report.parsed.cefr_level && (
                         <p>
-                          <span className="text-slate-400">
-                            CEFR level:
-                          </span>{" "}
-                          <span className="font-semibold">
-                            {report.parsed.cefr_level}
-                          </span>
+                          <span className="text-slate-400">CEFR level:</span>{" "}
+                          <span className="font-semibold">{report.parsed.cefr_level}</span>
                         </p>
                       )}
                       {report.parsed.accent && (
                         <p>
-                          <span className="text-slate-400">
-                            Detected accent:
-                          </span>{" "}
+                          <span className="text-slate-400">Detected accent:</span>{" "}
                           {report.parsed.accent}
                         </p>
                       )}
                       {report.parsed.strengths && (
                         <div>
-                          <span className="text-slate-400">
-                            Main strengths:
-                          </span>
+                          <span className="text-slate-400">Main strengths:</span>
                           <ul className="ml-4 list-disc">
                             {report.parsed.strengths.map((s, i) => (
                               <li key={i}>{s}</li>
@@ -742,9 +755,7 @@ const callRes = await fetch(
                       )}
                       {report.parsed.weaknesses && (
                         <div>
-                          <span className="text-slate-400">
-                            Areas to improve:
-                          </span>
+                          <span className="text-slate-400">Areas to improve:</span>
                           <ul className="ml-4 list-disc">
                             {report.parsed.weaknesses.map((s, i) => (
                               <li key={i}>{s}</li>
@@ -754,33 +765,25 @@ const callRes = await fetch(
                       )}
                       {report.parsed.recommendations && (
                         <div>
-                          <span className="text-slate-400">
-                            Recommendations:
-                          </span>
+                          <span className="text-slate-400">Recommendations:</span>
                           <ul className="ml-4 list-disc">
-                            {report.parsed.recommendations.map(
-                              (s, i) => (
-                                <li key={i}>{s}</li>
-                              )
-                            )}
+                            {report.parsed.recommendations.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
                           </ul>
                         </div>
                       )}
                       {report.parsed.overall_comment && (
                         <p>
-                          <span className="text-slate-400">
-                            Examiner comment:
-                          </span>{" "}
+                          <span className="text-slate-400">Examiner comment:</span>{" "}
                           {report.parsed.overall_comment}
                         </p>
                       )}
                     </>
                   ) : (
                     <>
-                      <p className="text-slate-300">
-                        LUMA generated the following evaluation:
-                      </p>
-                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-black/70 p-2 font-mono text-[10px]">
+                      <p className="text-slate-300">LUMA generated the following evaluation:</p>
+                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-black/60 p-2 font-mono text-[11px]">
                         {report.rawText}
                       </pre>
                     </>
@@ -789,9 +792,8 @@ const callRes = await fetch(
               )}
             </div>
           </aside>
-        </section>
+        </div>
       </div>
     </main>
   );
 }
-
