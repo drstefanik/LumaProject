@@ -459,24 +459,20 @@ export default function LumaSpeakingTestPage() {
                 </div>
 
                 {/* LUMA GIF listening field */}
-<div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-2 shadow-xl shadow-indigo-900/50">
-  <div className="relative h-40 w-full overflow-hidden rounded-xl bg-black">
-    {/* GIF di LUMA dal folder /public */}
-    <img
-      src="/Luma-project.gif"
-      alt="LUMA listening animation"
-      className="h-full w-full object-cover"
-    />
-
-    {/* leggero gradient ai bordi per integrarla nel tema dark */}
-    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50" />
-  </div>
-
-  <p className="relative mt-3 text-center text-[11px] text-slate-200">
-    LUMA listening field
-  </p>
-</div>
-
+                <div className="relative w-full max-w-xs self-center overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-2 shadow-xl shadow-indigo-900/50">
+                  <div className="relative h-40 w-full overflow-hidden rounded-xl bg-black">
+                    <img
+                      src="/Luma-project.gif"
+                      alt="LUMA listening animation"
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50" />
+                  </div>
+                  <p className="relative mt-3 text-center text-[11px] text-slate-200">
+                    LUMA listening field
+                  </p>
+                </div>
+              </div>
 
               {/* form fields */}
               <div className="mt-6 grid gap-3 text-xs text-slate-100 md:grid-cols-2">
