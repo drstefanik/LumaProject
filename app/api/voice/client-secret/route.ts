@@ -30,24 +30,16 @@ export async function POST(req: NextRequest) {
         },
         session: {
           type: "realtime",
-
-          // MODELLO CORRETTO PER AUDIO E WEBRTC
           model: "gpt-4o-realtime-preview",
-
-          // NECESSARIO: senza questo OpenAI rifiuta con 400
           modalities: ["audio", "text"],
-
-          // Config audio per input/output
           audio: {
-            input_audio_format: "pcm16",    // richiesto
-            output_audio_format: "pcm16",   // richiesto
-            voice: "sage"                    // o marin, alloy...
+            input_audio_format: "pcm16",
+            output_audio_format: "pcm16",
+            voice: "sage",
           },
-
-          // trascrizione voce utente
           input_audio_transcription: {
             model: "whisper-1",
-          }
+          },
         },
       }),
     });
