@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
         session: {
           type: "realtime",
           model: "gpt-4o-realtime-preview",
-          modalities: ["audio", "text"],
           audio: {
             input_audio_format: "pcm16",
             output_audio_format: "pcm16",
