@@ -36,9 +36,6 @@ export async function POST(req: NextRequest) {
             output_audio_format: "pcm16",
             voice: "sage",
           },
-          input_audio_transcription: {
-            model: "whisper-1",
-          },
         },
       }),
     });
