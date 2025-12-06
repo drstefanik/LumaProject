@@ -19,14 +19,22 @@ const openai = new OpenAI({ apiKey, project: projectId });
 
 export async function POST() {
   try {
-    const session = await openai.beta.realtime.sessions.create(
-      {
-        client_secret: {
-          // Expire the ephemeral client token 10 minutes after creation.
-          expires_at: {
-            anchor: "created_at",
-            seconds: 600,
-          },
+    const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "OpenAI-Project": projectId,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        expires_after: {
+          anchor: "created_at",
+          seconds: 600, // token valido 10 minuti
+        },
+        session: {
+          model: "gpt-4o-realtime-preview",
+          output_audio_format: "pcm16",
+          voice: "sage",
         },
         input_audio_format: "pcm16",
         output_audio_format: "pcm16",
