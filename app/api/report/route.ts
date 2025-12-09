@@ -62,10 +62,9 @@ async function buildStructuredReport(rawText?: string, rawJson?: any) {
         content: prompt,
       },
     ],
-    response_format: { type: "json_object" },
   });
 
-  const messageContent = completion.output[0]?.content?.[0]?.text ?? "";
+  const messageContent = completion.output_text ?? "";
   return JSON.parse(messageContent || "{}");
 }
 

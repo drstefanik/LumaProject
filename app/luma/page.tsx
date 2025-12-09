@@ -102,7 +102,7 @@ export default function LumaSpeakingTestPage() {
           motherTongue: nativeLanguage,
           country,
           purpose: testPurpose,
-          privacyConsent,
+          privacyConsent: privacyAccepted,
         }),
       });
 
