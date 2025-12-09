@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  console.log("Candidate payload:", body);
   const validationError = validatePayload(body);
 
   if (validationError) {

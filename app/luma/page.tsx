@@ -99,9 +99,9 @@ export default function LumaSpeakingTestPage() {
           lastName: lastName.trim(),
           email: email.trim(),
           dateOfBirth: birthDate,
-          motherTongue: nativeLanguage,
-          country,
-          purpose: testPurpose,
+          country: country.trim(),
+          nativeLanguage: nativeLanguage.trim(),
+          testPurpose: testPurpose.trim(),
           privacyConsent: privacyAccepted,
         }),
       });
