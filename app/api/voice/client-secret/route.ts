@@ -19,12 +19,13 @@ const openai = new OpenAI({ apiKey, project: projectId });
 
 export async function POST() {
   try {
-    const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+    const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "OpenAI-Project": projectId,
         "Content-Type": "application/json",
+        "OpenAI-Beta": "realtime=v1",
       },
       body: JSON.stringify({
         expires_after: {
@@ -40,13 +41,18 @@ export async function POST() {
         output_audio_format: "pcm16",
         voice: "sage",
         model: "gpt-4o-realtime-preview",
-      },
-      {
-        headers: {
-          "OpenAI-Beta": "realtime=v1",
-        },
-      }
-    );
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to create client secret", response.statusText);
+      return new NextResponse(
+        JSON.stringify({ error: "Failed to create client secret" }),
+        { status: 500 }
+      );
+    }
+
+    const session = await response.json();
 
     if (!session.client_secret?.value) {
       console.error("No client secret returned from OpenAI", session);
