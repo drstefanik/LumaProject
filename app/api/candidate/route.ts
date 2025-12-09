@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE_CANDIDATES =
-  process.env.AIRTABLE_TABLE_CANDIDATES || "LUMA-Candidates";
+const AIRTABLE_TABLE_CANDIDATES = process.env.AIRTABLE_CANDIDATE_TABLE;
 
 function validatePayload(body: any) {
   const required = [
@@ -11,9 +10,9 @@ function validatePayload(body: any) {
     "lastName",
     "email",
     "dateOfBirth",
-    "motherTongue",
     "country",
-    "purpose",
+    "nativeLanguage",
+    "testPurpose",
   ];
 
   for (const key of required) {
@@ -48,12 +47,11 @@ export async function POST(req: NextRequest) {
     FirstName: body.firstName,
     LastName: body.lastName,
     Email: body.email,
-    BirthDate: body.dateOfBirth,
-    NativeLanguage: body.motherTongue,
+    DateOfBirth: body.dateOfBirth,
     Country: body.country,
-    Purpose: body.purpose,
+    NativeLanguage: body.nativeLanguage,
+    TestPurpose: body.testPurpose,
     PrivacyConsent: true,
-    RegisteredAt: new Date().toISOString(),
   };
 
   try {
@@ -75,10 +73,7 @@ export async function POST(req: NextRequest) {
       const errText = await res.text();
       console.error("Airtable error", errText);
       return NextResponse.json(
-        {
-          error: "Failed to save candidate in Airtable",
-          details: errText,
-        },
+        { error: "Failed to save candidate in Airtable" },
         { status: 500 }
       );
     }
@@ -97,7 +92,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Error saving candidate", error);
     return NextResponse.json(
-      { error: error?.message || "Unknown error" },
+      { error: "Failed to save candidate" },
       { status: 500 }
     );
   }

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE_REPORTS =
-  process.env.AIRTABLE_TABLE_REPORTS || process.env.AIRTABLE_REPORT_TABLE || "LUMA-Reports";
+const AIRTABLE_TABLE_REPORTS = process.env.AIRTABLE_REPORT_TABLE;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL;
 const OPENAI_PROJECT_ID = process.env.OPENAI_PROJECT_ID;
@@ -104,23 +103,26 @@ function normalizeStructured(data: any): StructuredReport {
 async function saveToAirtable(
   candidateId: string,
   structured: StructuredReport,
-  rawText?: string
+  rawText?: string,
+  candidateEmail?: string
 ) {
   if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_TABLE_REPORTS) {
     throw new Error("Airtable is not configured");
   }
 
+  const joinText = (values: string[]) =>
+    values.length ? values.map((val) => `- ${val}`).join("\n") : undefined;
+
   const fields: Record<string, any> = {
     Candidate: [candidateId],
-    CandidateName: structured.candidate_name || undefined,
-    CEFRLevel: structured.cefr_level,
+    CandidateEmail: candidateEmail || undefined,
+    CEFR_Level: structured.cefr_level,
     Accent: structured.accent,
-    Strengths: structured.strengths.join("; "),
-    Weaknesses: structured.weaknesses.join("; "),
-    Recommendations: structured.recommendations.join("; "),
+    Strengths: joinText(structured.strengths),
+    Weaknesses: joinText(structured.weaknesses),
+    Recommendations: joinText(structured.recommendations),
     OverallComment: structured.overall_comment,
     RawEvaluationText: rawText || null,
-    StructuredJSON: JSON.stringify(structured),
   };
 
   const res = await fetch(
@@ -139,7 +141,7 @@ async function saveToAirtable(
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Airtable error: ${errText}`);
+    throw new Error(errText || "Airtable responded with an error");
   }
 }
 
@@ -149,6 +151,7 @@ export async function POST(req: NextRequest) {
     const candidateId = body.candidateId as string | undefined;
     const rawEvaluationText = body.rawEvaluationText as string | undefined;
     const rawEvaluationJson = body.rawEvaluationJson as any;
+    const candidateEmail = body.candidateEmail as string | undefined;
 
     if (!candidateId) {
       return NextResponse.json({ error: "candidateId is required" }, { status: 400 });
@@ -165,13 +168,13 @@ export async function POST(req: NextRequest) {
       await buildStructuredReport(rawEvaluationText, rawEvaluationJson)
     );
 
-    await saveToAirtable(candidateId, structured, rawEvaluationText);
+    await saveToAirtable(candidateId, structured, rawEvaluationText, candidateEmail);
 
-    return NextResponse.json({ ok: true, report: structured });
+    return NextResponse.json(structured);
   } catch (err: any) {
     console.error("Error handling report", err);
     return NextResponse.json(
-      { error: err?.message || "Internal server error" },
+      { error: "Failed to generate or save report" },
       { status: 500 }
     );
   }
