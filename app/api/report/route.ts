@@ -1,210 +1,178 @@
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_REPORT_TABLE =
-  process.env.AIRTABLE_REPORT_TABLE || "LUMASpeakingReports";
+const AIRTABLE_TABLE_REPORTS =
+  process.env.AIRTABLE_TABLE_REPORTS || process.env.AIRTABLE_REPORT_TABLE || "LUMA-Reports";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL;
+const OPENAI_PROJECT_ID = process.env.OPENAI_PROJECT_ID;
 
-export async function GET() {
-  try {
-    if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_REPORT_TABLE) {
-      console.error("Missing Airtable env vars");
-      return NextResponse.json(
-        { ok: false, error: "Airtable not configured" },
-        { status: 500 }
-      );
-    }
+const openai = OPENAI_API_KEY
+  ? new OpenAI({ apiKey: OPENAI_API_KEY, project: OPENAI_PROJECT_ID })
+  : null;
 
-    const res = await fetch(
-      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
-        AIRTABLE_REPORT_TABLE
-      )}`,
+const REQUIRED_FIELDS = [
+  "candidate_name",
+  "cefr_level",
+  "accent",
+  "strengths",
+  "weaknesses",
+  "recommendations",
+  "overall_comment",
+];
+
+type StructuredReport = {
+  candidate_name: string | null;
+  cefr_level: string;
+  accent: string;
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
+  overall_comment: string;
+};
+
+async function buildStructuredReport(rawText?: string, rawJson?: any) {
+  if (rawJson) return rawJson as StructuredReport;
+
+  if (!openai || !OPENAI_TEXT_MODEL) {
+    throw new Error("OpenAI text model is not configured");
+  }
+
+  const prompt = [
+    "You are LUMA, an English speaking examiner. Parse the following evaluation text and return ONLY a JSON object with these fields:",
+    "- candidate_name (string or null)",
+    "- cefr_level (string)",
+    "- accent (string)",
+    "- strengths (array of strings)",
+    "- weaknesses (array of strings)",
+    "- recommendations (array of strings)",
+    "- overall_comment (string)",
+    "", //
+    "Respond with strict JSON and no markdown or prose.",
+    `Evaluation text: ${rawText}`,
+  ].join("\n");
+
+  const completion = await openai.responses.create({
+    model: OPENAI_TEXT_MODEL,
+    input: [
       {
-        headers: {
-          Authorization: `Bearer ${AIRTABLE_API_KEY}`,
-        },
-      }
-    );
+        role: "system",
+        content: prompt,
+      },
+    ],
+  });
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("Airtable error:", text);
-      return NextResponse.json(
-        { ok: false, error: "airtable_error", details: text },
-        { status: 500 }
-      );
+  const messageContent = completion.output_text ?? "";
+  return JSON.parse(messageContent || "{}");
+}
+
+function normalizeStructured(data: any): StructuredReport {
+  const ensureArray = (value: any): string[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map(String);
+    return String(value)
+      .split(/[,\n;]/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+  };
+
+  const normalized: StructuredReport = {
+    candidate_name:
+      data.candidate_name !== undefined ? data.candidate_name : data.name ?? null,
+    cefr_level: data.cefr_level ?? data.level ?? "",
+    accent: data.accent ?? data.accent_detected ?? "",
+    strengths: ensureArray(data.strengths),
+    weaknesses: ensureArray(data.weaknesses),
+    recommendations: ensureArray(data.recommendations),
+    overall_comment: data.overall_comment ?? data.comment ?? "",
+  };
+
+  const missing = REQUIRED_FIELDS.filter((key) => {
+    const value = (normalized as any)[key];
+    return value === undefined || value === null || value === "";
+  });
+
+  if (missing.length) {
+    throw new Error(`Missing fields in structured report: ${missing.join(", ")}`);
+  }
+
+  return normalized;
+}
+
+async function saveToAirtable(
+  candidateId: string,
+  structured: StructuredReport,
+  rawText?: string
+) {
+  if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_TABLE_REPORTS) {
+    throw new Error("Airtable is not configured");
+  }
+
+  const fields: Record<string, any> = {
+    Candidate: [candidateId],
+    CandidateName: structured.candidate_name || undefined,
+    CEFRLevel: structured.cefr_level,
+    Accent: structured.accent,
+    Strengths: structured.strengths.join("; "),
+    Weaknesses: structured.weaknesses.join("; "),
+    Recommendations: structured.recommendations.join("; "),
+    OverallComment: structured.overall_comment,
+    RawEvaluationText: rawText || null,
+    StructuredJSON: JSON.stringify(structured),
+  };
+
+  const res = await fetch(
+    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
+      AIRTABLE_TABLE_REPORTS
+    )}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ records: [{ fields }] }),
     }
+  );
 
-    const data = await res.json();
-    const reports = (data.records || []).map((rec: any) => ({
-      id: rec.id,
-      ...rec.fields,
-    }));
-
-    return NextResponse.json({ ok: true, reports });
-  } catch (err: any) {
-    console.error(err);
-    return NextResponse.json(
-      { ok: false, error: err?.message || "unknown" },
-      { status: 500 }
-    );
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Airtable error: ${errText}`);
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_REPORT_TABLE) {
-      console.error("Missing Airtable env vars");
+    const body = await req.json();
+    const candidateId = body.candidateId as string | undefined;
+    const rawEvaluationText = body.rawEvaluationText as string | undefined;
+    const rawEvaluationJson = body.rawEvaluationJson as any;
+
+    if (!candidateId) {
+      return NextResponse.json({ error: "candidateId is required" }, { status: 400 });
+    }
+
+    if (!rawEvaluationText && !rawEvaluationJson) {
       return NextResponse.json(
-        { ok: false, error: "Airtable not configured" },
-        { status: 500 }
+        { error: "Provide rawEvaluationText or rawEvaluationJson" },
+        { status: 400 }
       );
     }
 
-    const body = await req.json();
-    const parsed = body.parsed || {};
-    const createdAt: string =
-      body.created_at || new Date().toISOString();
-
-    // ---- dati registrazione candidato ----
-    const firstName: string =
-      body.candidate_first_name ||
-      parsed.candidate_first_name ||
-      "";
-    const lastName: string =
-      body.candidate_last_name ||
-      parsed.candidate_last_name ||
-      "";
-    const candidateName: string =
-      body.candidate_name ||
-      parsed.candidate_name ||
-      `${firstName} ${lastName}`.trim();
-
-    const candidateEmail: string =
-      body.candidate_email ||
-      parsed.candidate_email ||
-      "";
-
-    const birthDate: string =
-      body.birth_date || parsed.birth_date || "";
-
-    const nativeLanguage: string =
-      body.native_language || parsed.native_language || "";
-
-    const country: string =
-      body.country || parsed.country || "";
-
-    const testPurpose: string =
-      body.test_purpose || parsed.test_purpose || "";
-
-    const privacyAccepted: boolean =
-      !!body.privacy_accepted || !!parsed.privacy_accepted;
-
-    // ---- mappatura campi Airtable ----
-    const fields: Record<string, any> = {
-      // anagrafica candidato
-      FirstName: firstName,
-      LastName: lastName,
-      Name: candidateName,
-      CandidateEmail: candidateEmail,
-      BirthDate: birthDate || null,
-      NativeLanguage: nativeLanguage,
-      Country: country,
-      TestPurpose: testPurpose,
-      PrivacyAccepted: privacyAccepted,
-
-      // info sessione
-      CandidateId: parsed.candidate_id || "",
-      DateTime: createdAt,
-      Status: parsed.status || "Completed",
-      Selected: parsed.selected ?? false,
-      AccentDetected: parsed.accent || parsed.accent_detected || "",
-      AccentOverall:
-        parsed.accent_overall ||
-        parsed.accent_comment ||
-        parsed.overall_comment ||
-        "",
-
-      CEFR_Global:
-        parsed.cefr_global || parsed.cefr_level || parsed.level || "",
-
-      Score_Fluency:
-        parsed.score_fluency ??
-        parsed.fluency_score ??
-        parsed.fluency ??
-        null,
-      Score_Pronunciation:
-        parsed.score_pronunciation ??
-        parsed.pronunciation_score ??
-        parsed.pronunciation ??
-        null,
-      Score_Grammar:
-        parsed.score_grammar ??
-        parsed.grammar_score ??
-        parsed.grammar ??
-        null,
-      Score_Vocabulary:
-        parsed.score_vocabulary ??
-        parsed.vocabulary_score ??
-        parsed.vocabulary ??
-        null,
-      Score_Coherence:
-        parsed.score_coherence ??
-        parsed.coherence_score ??
-        parsed.coherence ??
-        null,
-
-      Strengths: Array.isArray(parsed.strengths)
-        ? parsed.strengths.join("; ")
-        : parsed.strengths || "",
-
-      Weaknesses: Array.isArray(parsed.weaknesses)
-        ? parsed.weaknesses.join("; ")
-        : parsed.weaknesses || "",
-
-      Recommendations: Array.isArray(parsed.recommendations)
-        ? parsed.recommendations.join("; ")
-        : parsed.recommendations || "",
-
-      RawTranscript:
-        parsed.raw_transcript || body.transcript || body.rawText || "",
-
-      LanguagePair: parsed.language_pair || "EN-??",
-    };
-
-    const res = await fetch(
-      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
-        AIRTABLE_REPORT_TABLE
-      )}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${AIRTABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          records: [{ fields }],
-        }),
-      }
+    const structured = normalizeStructured(
+      await buildStructuredReport(rawEvaluationText, rawEvaluationJson)
     );
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("Airtable error:", text);
-      return NextResponse.json(
-        { ok: false, error: "airtable_error", details: text },
-        { status: 500 }
-      );
-    }
+    await saveToAirtable(candidateId, structured, rawEvaluationText);
 
-    const data = await res.json();
-    return NextResponse.json({ ok: true, airtable: data });
+    return NextResponse.json({ ok: true, report: structured });
   } catch (err: any) {
-    console.error(err);
+    console.error("Error handling report", err);
     return NextResponse.json(
-      { ok: false, error: err?.message || "unknown" },
+      { error: err?.message || "Internal server error" },
       { status: 500 }
     );
   }
 }
-

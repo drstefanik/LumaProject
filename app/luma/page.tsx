@@ -22,6 +22,7 @@ export default function LumaSpeakingTestPage() {
   const [log, setLog] = useState<string[]>([]);
   const [timer, setTimer] = useState<number>(0);
   const [report, setReport] = useState<ReportState | null>(null);
+  const [candidateId, setCandidateId] = useState<string | null>(null);
 
   // candidate form
   const [firstName, setFirstName] = useState("");
@@ -85,11 +86,46 @@ export default function LumaSpeakingTestPage() {
       }
 
       setReport(null);
+      setCandidateId(null);
       reportBufferRef.current = "";
       setStatus("connecting");
+
+      appendLog("Registering candidate...");
+      const candidateRes = await fetch("/api/candidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim(),
+          dateOfBirth: birthDate,
+          motherTongue: nativeLanguage,
+          country,
+          purpose: testPurpose,
+          privacyConsent: privacyAccepted,
+        }),
+      });
+
+      if (!candidateRes.ok) {
+        const errorText = await candidateRes.text();
+        appendLog("Error registering candidate: " + errorText);
+        setStatus("idle");
+        return;
+      }
+
+      const candidateJson = await candidateRes.json();
+      const backendCandidateId = candidateJson.candidateId as string | undefined;
+
+      if (!backendCandidateId) {
+        appendLog("Candidate registration failed: missing candidateId.");
+        setStatus("idle");
+        return;
+      }
+
+      setCandidateId(backendCandidateId);
       appendLog("Requesting client secret from backend...");
 
-      const res = await fetch("/api/voice/client-secret", {
+      const res = await fetch("/api/client-secret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -184,8 +220,11 @@ export default function LumaSpeakingTestPage() {
           type: "session.update",
           session: {
             type: "realtime",
-            model: "gpt-realtime",
             instructions,
+            metadata: {
+              candidate_id: backendCandidateId,
+              candidate_name: candidateFullName,
+            },
           },
         };
 
@@ -345,24 +384,18 @@ export default function LumaSpeakingTestPage() {
       parsed = undefined;
     }
 
-    setReport({
-      rawText: trimmed,
-      parsed,
-    });
+    setReport({ rawText: trimmed, parsed });
+
+    if (!candidateId) {
+      appendLog("Missing candidate ID; unable to store report.");
+      setStatus("active");
+      return;
+    }
 
     const payload = {
-      created_at: new Date().toISOString(),
-      rawText: trimmed,
-      parsed,
-      candidate_name: candidateFullName || null,
-      candidate_first_name: firstName.trim() || null,
-      candidate_last_name: lastName.trim() || null,
-      candidate_email: email.trim() || null,
-      birth_date: birthDate || null,
-      native_language: nativeLanguage || null,
-      country: country || null,
-      test_purpose: testPurpose || null,
-      privacy_accepted: privacyAccepted,
+      candidateId,
+      rawEvaluationText: trimmed,
+      rawEvaluationJson: parsed,
     };
 
     appendLog("Sending report to backend (Airtable)...");
@@ -377,6 +410,10 @@ export default function LumaSpeakingTestPage() {
         const t = await resp.text();
         appendLog("Error saving report: " + t);
       } else {
+        const saved = await resp.json();
+        if (saved.report) {
+          setReport({ rawText: trimmed, parsed: saved.report });
+        }
         appendLog("Report saved to Airtable (if configured).");
       }
     } catch (e: any) {
@@ -748,14 +785,10 @@ export default function LumaSpeakingTestPage() {
                       )}
                     </>
                   ) : (
-                    <>
-                      <p className="text-slate-300">
-                        LUMA generated the following evaluation:
-                      </p>
-                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-black/60 p-2 font-mono text-[11px]">
-                        {report.rawText}
-                      </pre>
-                    </>
+                    <p className="text-slate-300">
+                      The evaluation is being structured. Please try again if
+                      it does not appear shortly.
+                    </p>
                   )}
                 </div>
               )}
