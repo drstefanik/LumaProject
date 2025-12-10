@@ -5,6 +5,9 @@ import { useEffect, useRef, useState } from "react";
 
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
+const REALTIME_MODEL =
+  process.env.NEXT_PUBLIC_REALTIME_MODEL ?? "gpt-4o-realtime-preview-2024-12-17";
+
 type ReportState = {
   rawText: string;
   parsed?: {
@@ -341,7 +344,7 @@ export default function LumaSpeakingTestPage() {
       setCandidateId(backendCandidateId);
       appendLog("Requesting client secret from backend...");
 
-      const res = await fetch("/api/voice/client-secret", {
+      const res = await fetch("/api/client-secret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -412,36 +415,31 @@ export default function LumaSpeakingTestPage() {
           contextLines.push(`The purpose of this test is: ${testPurpose}.`);
         }
 
-        const instructions = [
-          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
-          "",
-          ...contextLines,
-        ].join("\n");
-
         const sessionUpdate = {
           type: "session.update",
           session: {
-            modalities: ["audio", "text"],
-            input_audio_transcription: { model: "gpt-4o-transcribe" },
-            instructions,
-            audio: {
-              output: {
-                voice: "alloy",
-              },
-            },
+            model: REALTIME_MODEL,
+            input_audio_transcription: { enabled: true },
             turn_detection: {
               type: "server_vad",
             },
           },
         };
 
+        const initialInstructions = [
+          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
+          "",
+          ...contextLines,
+          "",
+          "Greet the candidate briefly and explain that this is an English speaking test. Ask their name and where they are from.",
+        ].join("\n");
+
         dc.send(JSON.stringify(sessionUpdate));
         dc.send(
           JSON.stringify({
             type: "response.create",
             response: {
-              instructions:
-                "Greet the candidate briefly and explain that this is an English speaking test. Ask their name and where they are from.",
+              instructions: initialInstructions,
             },
           })
         );
