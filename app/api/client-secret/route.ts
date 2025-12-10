@@ -26,8 +26,25 @@ export async function POST() {
 
   try {
     const openai = new OpenAI({ apiKey });
-
-    const session = await openai.clientSecrets.create({
+    const session = await (
+      openai as OpenAI & {
+        clientSecrets: {
+          create: (params: {
+            project: string;
+            display_name: string;
+            expires_after: { anchor: "now"; duration: "1h" };
+            session: {
+              type: "realtime";
+              model: string;
+              modalities: string[];
+              input_audio_transcription: { enabled: boolean };
+            };
+          }) => Promise<{
+            client_secret?: { value?: string; expires_at?: number };
+          }>;
+        };
+      }
+    ).clientSecrets.create({
       project: projectId!,
       display_name: "LUMA Realtime Session",
       expires_after: {
