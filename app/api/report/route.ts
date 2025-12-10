@@ -1,181 +1,170 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_TABLE_REPORTS = process.env.AIRTABLE_REPORT_TABLE;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_TEXT_MODEL = process.env.OPENAI_TEXT_MODEL;
-const OPENAI_PROJECT_ID = process.env.OPENAI_PROJECT_ID;
+import { saveLumaReport } from "@/lib/airtable";
+import { openai } from "@/lib/openai";
 
-const openai = OPENAI_API_KEY
-  ? new OpenAI({ apiKey: OPENAI_API_KEY, project: OPENAI_PROJECT_ID })
-  : null;
+const REPORT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-4.1-mini";
 
-const REQUIRED_FIELDS = [
-  "candidate_name",
-  "cefr_level",
-  "accent",
-  "strengths",
-  "weaknesses",
-  "recommendations",
-  "overall_comment",
-];
-
-type StructuredReport = {
-  candidate_name: string | null;
-  cefr_level: string;
-  accent: string;
-  strengths: string[];
-  weaknesses: string[];
-  recommendations: string[];
-  overall_comment: string;
+type CandidatePayload = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  dateOfBirth?: string;
+  nativeLanguage?: string;
+  country?: string;
+  testPurpose?: string;
+  consentPrivacy?: boolean;
 };
 
-async function buildStructuredReport(rawText?: string, rawJson?: any) {
-  if (rawJson) return rawJson as StructuredReport;
+type EvaluationPayload = {
+  rawJson?: string;
+  parsed?: {
+    candidate_name?: string;
+    cefr_level?: string;
+    accent?: string;
+    strengths?: string[];
+    weaknesses?: string[];
+    recommendations?: string[];
+    overall_comment?: string;
+    global_score?: number;
+  };
+};
 
-  if (!openai || !OPENAI_TEXT_MODEL) {
-    throw new Error("OpenAI text model is not configured");
+function validatePayload(body: any) {
+  const { candidate, evaluation } = body || {};
+
+  if (!candidate || typeof candidate !== "object") return false;
+  if (!candidate.firstName || !candidate.lastName || !candidate.email) return false;
+
+  if (!evaluation || typeof evaluation !== "object") return false;
+  if (!evaluation.rawJson && !evaluation.parsed) return false;
+
+  return true;
+}
+
+function stringifyEvaluation(evaluation: EvaluationPayload) {
+  if (typeof evaluation.rawJson === "string" && evaluation.rawJson.trim()) {
+    return evaluation.rawJson;
   }
 
-  const prompt = [
-    "You are LUMA, an English speaking examiner. Parse the following evaluation text and return ONLY a JSON object with these fields:",
-    "- candidate_name (string or null)",
-    "- cefr_level (string)",
-    "- accent (string)",
-    "- strengths (array of strings)",
-    "- weaknesses (array of strings)",
-    "- recommendations (array of strings)",
-    "- overall_comment (string)",
-    "", //
-    "Respond with strict JSON and no markdown or prose.",
-    `Evaluation text: ${rawText}`,
+  if (evaluation.parsed) {
+    return JSON.stringify(evaluation.parsed, null, 2);
+  }
+
+  return "{}";
+}
+
+async function generateReport(candidate: CandidatePayload, evaluation: EvaluationPayload) {
+  const systemPrompt =
+    "You are an experienced English speaking examiner. Write concise, well-structured reports for speaking tests." +
+    " Keep the tone professional but accessible.";
+
+  const userPrompt = [
+    "Please write a speaking test report based on the following evaluation data.",
+    "The report must be structured with the following sections:",
+    "1. Candidate Overview",
+    "2. Pronunciation",
+    "3. Fluency & Confidence",
+    "4. Vocabulary & Range",
+    "5. Grammar & Coherence",
+    "6. Overall CEFR Level",
+    "7. Recommendations",
+    "",
+    "Refer to the candidate in the third person.",
+    "",
+    "Candidate data:",
+    JSON.stringify(
+      {
+        name: `${candidate.firstName ?? ""} ${candidate.lastName ?? ""}`.trim(),
+        country: candidate.country,
+        nativeLanguage: candidate.nativeLanguage,
+        testPurpose: candidate.testPurpose,
+        cefrLevel: evaluation.parsed?.cefr_level,
+      },
+      null,
+      2
+    ),
+    "",
+    "Evaluation JSON:",
+    stringifyEvaluation(evaluation),
   ].join("\n");
 
   const completion = await openai.responses.create({
-    model: OPENAI_TEXT_MODEL,
+    model: REPORT_MODEL,
     input: [
-      {
-        role: "system",
-        content: prompt,
-      },
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
     ],
   });
 
-  const messageContent = completion.output_text ?? "";
-  return JSON.parse(messageContent || "{}");
-}
+  const reportText = completion.output_text?.trim();
 
-function normalizeStructured(data: any): StructuredReport {
-  const ensureArray = (value: any): string[] => {
-    if (!value) return [];
-    if (Array.isArray(value)) return value.map(String);
-    return String(value)
-      .split(/[,\n;]/)
-      .map((v) => v.trim())
-      .filter(Boolean);
-  };
-
-  const normalized: StructuredReport = {
-    candidate_name:
-      data.candidate_name !== undefined ? data.candidate_name : data.name ?? null,
-    cefr_level: data.cefr_level ?? data.level ?? "",
-    accent: data.accent ?? data.accent_detected ?? "",
-    strengths: ensureArray(data.strengths),
-    weaknesses: ensureArray(data.weaknesses),
-    recommendations: ensureArray(data.recommendations),
-    overall_comment: data.overall_comment ?? data.comment ?? "",
-  };
-
-  const missing = REQUIRED_FIELDS.filter((key) => {
-    const value = (normalized as any)[key];
-    return value === undefined || value === null || value === "";
-  });
-
-  if (missing.length) {
-    throw new Error(`Missing fields in structured report: ${missing.join(", ")}`);
+  if (!reportText) {
+    throw new Error("No report text returned from OpenAI");
   }
 
-  return normalized;
-}
-
-async function saveToAirtable(
-  candidateId: string,
-  structured: StructuredReport,
-  rawText?: string,
-  candidateEmail?: string
-) {
-  if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID || !AIRTABLE_TABLE_REPORTS) {
-    throw new Error("Airtable is not configured");
-  }
-
-  const joinText = (values: string[]) =>
-    values.length ? values.map((val) => `- ${val}`).join("\n") : undefined;
-
-  const fields: Record<string, any> = {
-    Candidate: [candidateId],
-    CandidateEmail: candidateEmail || undefined,
-    CEFR_Level: structured.cefr_level,
-    Accent: structured.accent,
-    Strengths: joinText(structured.strengths),
-    Weaknesses: joinText(structured.weaknesses),
-    Recommendations: joinText(structured.recommendations),
-    OverallComment: structured.overall_comment,
-    RawEvaluationText: rawText || null,
-  };
-
-  const res = await fetch(
-    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
-      AIRTABLE_TABLE_REPORTS
-    )}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ records: [{ fields }] }),
-    }
-  );
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(errText || "Airtable responded with an error");
-  }
+  return reportText;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const candidateId = body.candidateId as string | undefined;
-    const rawEvaluationText = body.rawEvaluationText as string | undefined;
-    const rawEvaluationJson = body.rawEvaluationJson as any;
-    const candidateEmail = body.candidateEmail as string | undefined;
 
-    if (!candidateId) {
-      return NextResponse.json({ error: "candidateId is required" }, { status: 400 });
+    if (!validatePayload(body)) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    if (!rawEvaluationText && !rawEvaluationJson) {
+    const candidate = body.candidate as CandidatePayload;
+    const evaluation = body.evaluation as EvaluationPayload;
+
+    let airtableId: string | null = null;
+
+    try {
+      airtableId = await saveLumaReport({
+        firstName: candidate.firstName!,
+        lastName: candidate.lastName!,
+        email: candidate.email!,
+        dateOfBirth: candidate.dateOfBirth,
+        nativeLanguage: candidate.nativeLanguage,
+        country: candidate.country,
+        testPurpose: candidate.testPurpose,
+        consentPrivacy: candidate.consentPrivacy,
+        cefrLevel: evaluation.parsed?.cefr_level,
+        accent: evaluation.parsed?.accent,
+        globalScore: evaluation.parsed?.global_score,
+        rawJson: stringifyEvaluation(evaluation),
+      });
+    } catch (error) {
+      console.error("Error saving LUMA report to Airtable", error);
       return NextResponse.json(
-        { error: "Provide rawEvaluationText or rawEvaluationJson" },
-        { status: 400 }
+        { error: "Failed to save report to Airtable" },
+        { status: 500 }
       );
     }
 
-    const structured = normalizeStructured(
-      await buildStructuredReport(rawEvaluationText, rawEvaluationJson)
-    );
+    let reportText: string;
 
-    await saveToAirtable(candidateId, structured, rawEvaluationText, candidateEmail);
+    try {
+      reportText = await generateReport(candidate, evaluation);
+    } catch (error) {
+      console.error("Error generating report", error);
+      return NextResponse.json(
+        { error: "Failed to generate report" },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json(structured);
-  } catch (err: any) {
-    console.error("Error handling report", err);
-    return NextResponse.json(
-      { error: "Failed to generate or save report" },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: true,
+      airtableId,
+      reportText,
+      meta: {
+        cefrLevel: evaluation.parsed?.cefr_level ?? null,
+        globalScore: evaluation.parsed?.global_score ?? null,
+      },
+    });
+  } catch (err) {
+    console.error("Error handling /api/report request", err);
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 }
