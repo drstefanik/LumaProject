@@ -243,6 +243,9 @@ export default function LumaSpeakingTestPage() {
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const sessionInitializedRef = useRef(false);
+  const responseMetadataRef = useRef<Record<string, string | undefined>>({});
 
   const reportBufferRef = useRef<string>("");
 
@@ -266,12 +269,25 @@ export default function LumaSpeakingTestPage() {
   }
 
   useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.autoplay = true;
+      audioRef.current.setAttribute("playsinline", "true");
+    }
+
     return () => {
       peerRef.current?.close();
       wsRef.current?.close();
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
       stopTimer();
     };
   }, []);
+
+  function stopMicrophoneTracks() {
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+    }
+  }
 
   async function startTest() {
     try {
@@ -304,6 +320,8 @@ export default function LumaSpeakingTestPage() {
       setReport(null);
       setCandidateId(null);
       reportBufferRef.current = "";
+      sessionInitializedRef.current = false;
+      responseMetadataRef.current = {};
       setStatus("connecting");
 
       appendLog("Registering candidate...");
@@ -372,6 +390,7 @@ export default function LumaSpeakingTestPage() {
 
       appendLog("Acquiring microphone...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
 
       const pc = new RTCPeerConnection();
       peerRef.current = pc;
@@ -383,10 +402,14 @@ export default function LumaSpeakingTestPage() {
       pc.ontrack = (event) => {
         if (!audioRef.current) return;
         audioRef.current.srcObject = event.streams[0];
-        audioRef.current
-          .play()
-          .then(() => appendLog("Playing audio from LUMA."))
-          .catch(() => {});
+        const playPromise = audioRef.current.play();
+        if (playPromise) {
+          playPromise
+            .then(() => appendLog("Playing audio from LUMA."))
+            .catch((err) => {
+              console.warn("Autoplay blocked or failed:", err);
+            });
+        }
       };
 
       const dc = pc.createDataChannel("oai-events");
@@ -396,59 +419,77 @@ export default function LumaSpeakingTestPage() {
         appendLog("Data channel open. Configuring LUMA session...");
         setStatus("active");
         startTimer();
-
-        const contextLines: string[] = [
-          `The candidate's name is "${candidateFullName}".`,
-        ];
-
-        if (nativeLanguage) {
-          contextLines.push(
-            `The candidate's native language is ${nativeLanguage}.`
-          );
-        }
-
-        if (country) {
-          contextLines.push(`The candidate is currently in ${country}.`);
-        }
-
-        if (testPurpose) {
-          contextLines.push(`The purpose of this test is: ${testPurpose}.`);
-        }
-
-        const sessionUpdate = {
-          type: "session.update",
-          session: {
-            model: REALTIME_MODEL,
-            input_audio_transcription: { enabled: true },
-            turn_detection: {
-              type: "server_vad",
-            },
-          },
-        };
-
-        const initialInstructions = [
-          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
-          "",
-          ...contextLines,
-          "",
-          "Greet the candidate briefly and explain that this is an English speaking test. Ask their name and where they are from.",
-        ].join("\n");
-
-        dc.send(JSON.stringify(sessionUpdate));
-        dc.send(
-          JSON.stringify({
-            type: "response.create",
-            response: {
-              instructions: initialInstructions,
-            },
-          })
-        );
-        appendLog("Session configured. Start speaking in English!");
       };
 
       dc.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+
+          if (msg.type === "session.created") {
+            if (sessionInitializedRef.current) return;
+            sessionInitializedRef.current = true;
+            appendLog("Session created. Sending configuration and greeting...");
+
+            const contextLines: string[] = [
+              `The candidate's name is "${candidateFullName}".`,
+            ];
+
+            if (nativeLanguage) {
+              contextLines.push(
+                `The candidate's native language is ${nativeLanguage}.`
+              );
+            }
+
+            if (country) {
+              contextLines.push(`The candidate is currently in ${country}.`);
+            }
+
+            if (testPurpose) {
+              contextLines.push(`The purpose of this test is: ${testPurpose}.`);
+            }
+
+            const systemInstructions = [
+              "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
+              ...contextLines,
+              "Keep the conversation flowing naturally and encourage the candidate to speak.",
+            ].join("\n");
+
+            const sessionUpdate = {
+              type: "session.update",
+              session: {
+                model: REALTIME_MODEL,
+                voice: "alloy",
+                instructions: systemInstructions,
+                turn_detection: {
+                  type: "server_vad",
+                  create_response: true,
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 500,
+                },
+                output_audio_format: "pcm16",
+              },
+            } as const;
+
+            const greetingText =
+              "Hi, I am LUMA, your English speaking assistant. Let's start when you are ready.";
+
+            const greetingEvent = {
+              type: "response.create",
+              response: {
+                metadata: { purpose: "initial_greeting" },
+                instructions: greetingText,
+                modalities: ["text", "audio"],
+                output_audio_format: "pcm16",
+                voice: "alloy",
+              },
+            } as const;
+
+            dc.send(JSON.stringify(sessionUpdate));
+            dc.send(JSON.stringify(greetingEvent));
+            appendLog("Session configured. LUMA will greet the candidate.");
+            return;
+          }
 
           if (
             msg.type === "response.output_audio_transcript.delta" ||
@@ -460,41 +501,33 @@ export default function LumaSpeakingTestPage() {
             return;
           }
 
-          if (msg.type === "response.output_audio_transcript.done") {
-            const text =
-              (msg.output_audio_transcript &&
-                msg.output_audio_transcript.join("")) ||
-              msg.output_text ||
-              "";
-            if (text) appendLog(`LUMA: ${text}`);
+          if (msg.type === "response.created" && msg.response?.id) {
+            responseMetadataRef.current[msg.response.id] =
+              msg.response.metadata?.purpose;
+            appendLog("Response created: " + msg.response.id);
             return;
           }
 
-          const isReport =
-            msg.response?.metadata?.purpose === "speaking_report" ||
-            msg.metadata?.purpose === "speaking_report";
+          if (msg.type === "response.output_item.added") {
+            appendLog("Output item added to response.");
+            return;
+          }
 
-          if (isReport) {
-            if (msg.type === "response.output_text.delta") {
-              const deltaText = msg.delta?.text ?? "";
-              reportBufferRef.current += deltaText;
-              return;
+          if (msg.type === "response.text.delta") {
+            const purpose = responseMetadataRef.current[msg.response_id];
+            if (purpose === "speaking_report") {
+              reportBufferRef.current += msg.delta;
+            } else if (msg.delta?.trim()) {
+              appendLog(`LUMA: ${msg.delta}`);
             }
+            return;
+          }
 
-            if (msg.type === "response.output_text.done") {
-              let fullText = reportBufferRef.current.trim();
-
-              if (!fullText) {
-                const fromOutput = Array.isArray(msg.output_text)
-                  ? msg.output_text.join("")
-                  : msg.output_text || "";
-                const fromResponse = Array.isArray(msg.response?.output_text)
-                  ? msg.response.output_text.join("")
-                  : msg.response?.output_text || "";
-
-                fullText = (fromOutput || fromResponse || "").toString().trim();
-              }
-
+          if (msg.type === "response.text.done") {
+            const purpose = responseMetadataRef.current[msg.response_id];
+            if (purpose === "speaking_report") {
+              const fullText = (reportBufferRef.current + msg.text).trim();
+              reportBufferRef.current = "";
               if (!fullText) {
                 appendLog("No written evaluation received from LUMA.");
                 setStatus("active");
@@ -503,20 +536,24 @@ export default function LumaSpeakingTestPage() {
 
               appendLog("Final written evaluation received from LUMA.");
               processFinalReport(fullText);
-              return;
+            } else if (msg.text?.trim()) {
+              appendLog(`LUMA: ${msg.text}`);
             }
+            return;
           }
 
-          if (msg.type === "session.created") {
-            appendLog("Session created.");
-          } else if (msg.type === "response.created") {
-            appendLog("Evaluation response created...");
-          } else if (msg.type === "response.done") {
-            appendLog("Evaluation response completed.");
-          } else if (msg.type === "error") {
+          if (msg.type === "response.done") {
+            appendLog("Response streaming completed.");
+            return;
+          }
+
+          if (msg.type === "error") {
             console.error("LUMA Realtime error:", msg.error || msg);
             appendLog("ERROR from Realtime API: " + msg.error?.message);
-          } else if (msg.type) {
+            return;
+          }
+
+          if (msg.type) {
             appendLog("Event: " + msg.type);
           }
         } catch {
@@ -524,9 +561,9 @@ export default function LumaSpeakingTestPage() {
         }
       };
 
-      const url = `wss://api.openai.com/v1/realtime?client_secret=${encodeURIComponent(
-        clientSecret
-      )}`;
+      const url =
+        `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(REALTIME_MODEL)}` +
+        `&client_secret=${encodeURIComponent(clientSecret)}`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -541,6 +578,7 @@ export default function LumaSpeakingTestPage() {
         appendLog("Realtime connection error.");
         setStatus("idle");
         stopTimer();
+        stopMicrophoneTracks();
       };
 
       ws.onclose = () => {
@@ -548,6 +586,7 @@ export default function LumaSpeakingTestPage() {
           if (prev !== "idle") {
             appendLog("Realtime connection closed.");
             stopTimer();
+            stopMicrophoneTracks();
           }
           return "idle";
         });
@@ -584,6 +623,7 @@ export default function LumaSpeakingTestPage() {
             );
             setStatus("idle");
             stopTimer();
+            stopMicrophoneTracks();
           }
         } catch (error) {
           console.error("Failed to parse signaling message:", error);
@@ -641,11 +681,11 @@ export default function LumaSpeakingTestPage() {
     const event = {
       type: "response.create",
       response: {
-        modalities: ["text"],
         instructions,
         metadata: {
           purpose: "speaking_report",
         },
+        modalities: ["text"],
       },
     };
 
@@ -706,6 +746,7 @@ export default function LumaSpeakingTestPage() {
   function stopTest() {
     appendLog("Stop pressed. Asking LUMA for final evaluation...");
     stopTimer();
+    stopMicrophoneTracks();
     requestFinalEvaluation();
   }
 
@@ -714,6 +755,8 @@ export default function LumaSpeakingTestPage() {
     peerRef.current = null;
     wsRef.current?.close();
     wsRef.current = null;
+    sessionInitializedRef.current = false;
+    stopMicrophoneTracks();
     setStatus("idle");
     stopTimer();
     appendLog("Session closed.");
