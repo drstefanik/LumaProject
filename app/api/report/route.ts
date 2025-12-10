@@ -177,18 +177,22 @@ export async function POST(req: NextRequest) {
 
     try {
       airtableId = await saveLumaReport({
-        candidateName: `${candidate.firstName!} ${candidate.lastName!}`.trim(),
-        candidateEmail: candidate.email!,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        email: candidate.email!,
         cefrLevel: evaluation.parsed?.cefr_level,
         accent: evaluation.parsed?.accent,
         strengths: evaluation.parsed?.strengths,
         weaknesses: evaluation.parsed?.weaknesses,
         recommendations: evaluation.parsed?.recommendations,
         overallComment: evaluation.parsed?.overall_comment,
-        rawEvaluationText: stringifyEvaluation(evaluation),
+        rawJson: stringifyEvaluation(evaluation),
       });
     } catch (error) {
-      console.error("Error saving LUMA report to Airtable", error);
+      console.error(
+        "Error saving LUMA report to Airtable",
+        JSON.stringify(error, null, 2)
+      );
       airtableId = null;
     }
 
