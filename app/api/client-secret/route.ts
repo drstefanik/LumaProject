@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 
 export const maxDuration = 60;
@@ -24,42 +25,39 @@ export async function POST() {
   }
 
   try {
-    const response = await fetch(
-      "https://api.openai.com/v1/realtime/client_secrets",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          ...(projectId ? { "OpenAI-Project": projectId } : {}),
-        },
-        body: JSON.stringify({
-          expires_after: {
-            seconds: 600,
-          },
-          session: {
-            type: "realtime",
-            model: realtimeModel,
-            modalities: ["audio", "text"],
-            voice: "alloy",
-            instructions: BASE_PROMPT,
-            input_audio_format: "pcm16",
-            output_audio_format: "pcm16",
-          },
-        }),
+    const openai = new OpenAI({ apiKey });
+    const session = await (
+      openai as OpenAI & {
+        clientSecrets: {
+          create: (params: {
+            project: string;
+            display_name: string;
+            expires_after: { anchor: "now"; duration: "1h" };
+            session: {
+              type: "realtime";
+              model: string;
+              modalities: string[];
+              input_audio_transcription: { enabled: boolean };
+            };
+          }) => Promise<{
+            client_secret?: { value?: string; expires_at?: number };
+          }>;
+        };
       }
-    );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error("Failed to create client secret", response.statusText, errorBody);
-      return NextResponse.json(
-        { error: "Failed to create client secret" },
-        { status: 500 }
-      );
-    }
-
-    const session = await response.json();
+    ).clientSecrets.create({
+      project: projectId!,
+      display_name: "LUMA Realtime Session",
+      expires_after: {
+        anchor: "now",
+        duration: "1h",
+      },
+      session: {
+        type: "realtime",
+        model: realtimeModel,
+        modalities: ["audio", "text"],
+        input_audio_transcription: { enabled: true },
+      },
+    });
 
     if (!session.client_secret?.value) {
       console.error("No client secret returned from OpenAI", session);
