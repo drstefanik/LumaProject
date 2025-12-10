@@ -250,6 +250,8 @@ export default function LumaSpeakingTestPage() {
   const micStreamRef = useRef<MediaStream | null>(null);
   const responseMetadataRef = useRef<Record<string, string | undefined>>({});
 
+  const statusRef = useRef<Status>("idle");
+
   const reportResponseIdRef = useRef<string | null>(null);
 
   const reportBufferRef = useRef<string>("");
@@ -273,6 +275,10 @@ export default function LumaSpeakingTestPage() {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
   }
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -507,7 +513,7 @@ export default function LumaSpeakingTestPage() {
         try {
           const msg = JSON.parse(event.data);
 
-          if (status === "evaluating") {
+          if (statusRef.current === "evaluating") {
             appendLog("Realtime event (evaluating): " + msg.type);
           }
 
