@@ -3,6 +3,9 @@
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
+const REALTIME_MODEL =
+  process.env.NEXT_PUBLIC_REALTIME_MODEL ?? "gpt-4o-realtime-preview";
+
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
 type ReportState = {
@@ -238,6 +241,7 @@ export default function LumaSpeakingTestPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const reportBufferRef = useRef<string>("");
@@ -264,6 +268,7 @@ export default function LumaSpeakingTestPage() {
   useEffect(() => {
     return () => {
       peerRef.current?.close();
+      wsRef.current?.close();
       stopTimer();
     };
   }, []);
@@ -319,13 +324,16 @@ export default function LumaSpeakingTestPage() {
 
       if (!candidateRes.ok) {
         const errorText = await candidateRes.text();
+        console.error("Candidate registration failed:", errorText);
         appendLog("Error registering candidate: " + errorText);
         setStatus("idle");
         return;
       }
 
       const candidateJson = await candidateRes.json();
-      const backendCandidateId = candidateJson.candidateId as string | undefined;
+      const backendCandidateId = (candidateJson.candidateId || candidateJson.recordId) as
+        | string
+        | undefined;
 
       if (!backendCandidateId) {
         appendLog("Candidate registration failed: missing candidateId.");
@@ -339,10 +347,15 @@ export default function LumaSpeakingTestPage() {
       const res = await fetch("/api/client-secret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          candidateId: backendCandidateId,
+          candidateEmail: email.trim(),
+        }),
       });
 
       if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Client secret creation failed:", errorText);
         appendLog("Error from backend creating client secret.");
         setStatus("idle");
         return;
@@ -403,7 +416,7 @@ export default function LumaSpeakingTestPage() {
         }
 
         const instructions = [
-          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English and guide the candidate through a speaking test.",
+          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
           "",
           ...contextLines,
         ].join("\n");
@@ -411,6 +424,10 @@ export default function LumaSpeakingTestPage() {
         const sessionUpdate = {
           type: "session.update",
           session: {
+            // LUMA Realtime session: il modello è configurato solo qui, lato client
+            model: REALTIME_MODEL,
+            modalities: ["audio", "text"],
+            input_audio_transcription: { enabled: true },
             instructions,
             audio: {
               output: {
@@ -518,32 +535,95 @@ export default function LumaSpeakingTestPage() {
         }
       };
 
+      const url = `wss://api.openai.com/v1/realtime?client_secret=${encodeURIComponent(
+        clientSecret
+      )}`;
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      type RealtimeSignalMessage =
+        | { type: "server_description"; sdp: RTCSessionDescriptionInit }
+        | { type: "ice_candidate"; candidate: RTCIceCandidateInit }
+        | { type: "error"; error?: { message?: string } }
+        | Record<string, any>;
+
+      ws.onerror = (event) => {
+        console.error("Realtime WebSocket error:", event);
+        appendLog("Realtime connection error.");
+        setStatus("idle");
+        stopTimer();
+      };
+
+      ws.onclose = () => {
+        setStatus((prev) => {
+          if (prev !== "idle") {
+            appendLog("Realtime connection closed.");
+            stopTimer();
+          }
+          return "idle";
+        });
+      };
+
+      pc.onicecandidate = (event) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        if (event.candidate) {
+          wsRef.current.send(
+            JSON.stringify({
+              type: "ice_candidate",
+              candidate: event.candidate,
+            })
+          );
+        } else {
+          wsRef.current.send(JSON.stringify({ type: "ice_candidate_complete" }));
+        }
+      };
+
+      ws.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data) as RealtimeSignalMessage;
+          if (message.type === "server_description" && message.sdp) {
+            await pc.setRemoteDescription(message.sdp);
+            appendLog("Received remote description from LUMA.");
+          } else if (message.type === "ice_candidate" && message.candidate) {
+            await pc.addIceCandidate(message.candidate);
+          } else if (message.type === "error") {
+            console.error("Realtime error:", message.error || message);
+            appendLog(
+              "Error from Realtime API: " + (message.error?.message || "unknown")
+            );
+            setStatus("idle");
+            stopTimer();
+          }
+        } catch (error) {
+          console.error("Failed to parse signaling message:", error);
+        }
+      };
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      appendLog("Sending SDP offer to OpenAI Realtime API...");
+      const sendClientDescription = () => {
+        if (
+          ws.readyState === WebSocket.OPEN &&
+          pc.localDescription?.sdp &&
+          pc.localDescription?.type
+        ) {
+          ws.send(
+            JSON.stringify({
+              type: "client_description",
+              sdp: pc.localDescription,
+            })
+          );
+          appendLog("Sent SDP offer to OpenAI Realtime API.");
+        }
+      };
 
-      const callRes = await fetch("https://api.openai.com/v1/realtime", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${clientSecret}`,
-          "Content-Type": "application/sdp",
-          "OpenAI-Beta": "realtime=v1",
-        },
-        body: offer.sdp || "",
-      });
+      ws.onopen = sendClientDescription;
+      sendClientDescription();
 
-      if (!callRes.ok) {
-        appendLog("Failed to create realtime call.");
-        setStatus("idle");
-        stopTimer();
-        return;
-      }
-
-      const answerSdp = await callRes.text();
-      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
-
-      appendLog("LUMA connected. Speak naturally in English.");
+      appendLog("Connecting to LUMA Realtime...");
     } catch (err: any) {
       console.error(err);
       appendLog("Error: " + (err?.message || "unknown"));
@@ -643,6 +723,8 @@ export default function LumaSpeakingTestPage() {
   function hardCloseSession() {
     peerRef.current?.close();
     peerRef.current = null;
+    wsRef.current?.close();
+    wsRef.current = null;
     setStatus("idle");
     stopTimer();
     appendLog("Session closed.");
