@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 
 export const maxDuration = 300;
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  project: process.env.OPENAI_PROJECT_ID,
-});
 
 export async function POST(req: Request) {
   try {
@@ -42,31 +36,61 @@ export async function POST(req: Request) {
     const { candidateId, candidateEmail } = body;
 
     // ⚠️ NIENTE "modalities" e NIENTE "input_audio_transcription" qui.
-    const secret = await openai.client.secrets.create({
-      ttl: 60 * 60, // 1 ora
-      // Il modello Realtime da usare
-      model: process.env.OPENAI_REALTIME_MODEL!,
-      // Configurazione della sessione iniziale
-      session: {
-        type: "realtime",
-        model: process.env.OPENAI_REALTIME_MODEL!,
-        instructions:
-          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English and be friendly and professional. Keep answers concise and focus on spoken interaction.",
-        audio: {
-          // abilita l'output audio con una voce standard
-          output: {
-            voice: "alloy",
+    const response = await fetch(
+      "https://api.openai.com/v1/realtime/client_secrets",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+          "OpenAI-Beta": "realtime=v1",
+          "OpenAI-Project": process.env.OPENAI_PROJECT_ID!,
+        },
+        body: JSON.stringify({
+          expires_after: 60 * 60, // 1 ora
+          // Il modello Realtime da usare
+          model: process.env.OPENAI_REALTIME_MODEL!,
+          // Configurazione della sessione iniziale
+          session: {
+            type: "realtime",
+            model: process.env.OPENAI_REALTIME_MODEL!,
+            instructions:
+              "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English and be friendly and professional. Keep answers concise and focus on spoken interaction.",
+            audio: {
+              // abilita l'output audio con una voce standard
+              output: {
+                voice: "alloy",
+              },
+            },
+            // metadati opzionali
+            metadata: {
+              candidateId: candidateId ?? undefined,
+              candidateEmail: candidateEmail ?? undefined,
+            },
           },
-        },
-        // metadati opzionali
-        metadata: {
-          candidateId: candidateId ?? undefined,
-          candidateEmail: candidateEmail ?? undefined,
-        },
-      },
-    });
+        }),
+      }
+    );
 
-    return NextResponse.json({ client_secret: secret.secret });
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      console.error(
+        "Error from OpenAI when creating client secret:",
+        response.status,
+        response.statusText,
+        data
+      );
+      return NextResponse.json(
+        {
+          error: "Failed to create client secret",
+          details: data ?? response.statusText,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ client_secret: data?.value });
   } catch (error: any) {
     console.error(
       "Error from OpenAI when creating client secret:",
