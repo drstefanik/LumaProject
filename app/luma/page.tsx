@@ -518,7 +518,30 @@ export default function LumaSpeakingTestPage() {
           }
 
           if (
-            message.type === "response.output_audio_transcript.delta" ||
+            statusRef.current === "evaluating" &&
+            message.type === "response.output_audio_transcript.delta"
+          ) {
+            if (typeof message.delta === "string") {
+              reportBufferRef.current += message.delta;
+              appendLog(
+                "Accumulated report length: " + reportBufferRef.current.length
+              );
+            }
+            return;
+          }
+
+          if (
+            statusRef.current === "evaluating" &&
+            message.type === "response.output_audio_transcript.done"
+          ) {
+            appendLog("Speaking report completed. Calling processFinalReport...");
+            await processFinalReport(reportBufferRef.current);
+            reportResponseIdRef.current = null;
+            reportBufferRef.current = "";
+            return;
+          }
+
+          if (
             message.type === "input_audio_buffer.append" ||
             message.type === "input_audio_buffer.speech_started" ||
             message.type === "input_audio_buffer.speech_stopped" ||
