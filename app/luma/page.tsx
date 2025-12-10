@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 type Status = "idle" | "connecting" | "active" | "evaluating";
@@ -16,6 +17,206 @@ type ReportState = {
     overall_comment?: string;
   };
 };
+
+const NATIVE_LANGUAGES = [
+  "English",
+  "Italian",
+  "Spanish",
+  "French",
+  "German",
+  "Portuguese",
+  "Russian",
+  "Arabic",
+  "Mandarin Chinese",
+  "Cantonese",
+  "Hindi",
+  "Bengali",
+  "Urdu",
+  "Turkish",
+  "Dutch",
+  "Swedish",
+  "Norwegian",
+  "Danish",
+  "Finnish",
+  "Polish",
+  "Czech",
+  "Slovak",
+  "Hungarian",
+  "Greek",
+  "Romanian",
+  "Bulgarian",
+  "Ukrainian",
+  "Serbian",
+  "Croatian",
+  "Bosnian",
+  "Korean",
+  "Japanese",
+  "Thai",
+  "Vietnamese",
+  "Filipino",
+  "Indonesian",
+  "Malay",
+  "Persian",
+  "Hebrew",
+  "Swahili",
+  "Amharic",
+  "Somali",
+  "Yoruba",
+  "Zulu",
+  "Afrikaans",
+  "Other",
+];
+
+const TEST_PURPOSES = [
+  "University Admission",
+  "Erasmus/Exchange Program",
+  "Job Application",
+  "Career Advancement",
+  "Visa or Immigration",
+  "Professional Certification",
+  "Language Course Placement",
+  "Personal Improvement",
+  "Exam Preparation (IELTS/TOEFL)",
+  "School Requirement",
+  "Scholarship Requirement",
+  "Other",
+];
+
+type SearchableSelectProps = {
+  label: string;
+  placeholder?: string;
+  options: string[];
+  value: string;
+  onChange: (newValue: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+};
+
+function SearchableSelect({
+  label,
+  placeholder,
+  options,
+  value,
+  onChange,
+  required,
+  disabled,
+}: SearchableSelectProps) {
+  const [query, setQuery] = useState(value);
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(query.toLowerCase())
+  );
+
+  useEffect(() => {
+    if (highlightedIndex >= filteredOptions.length) {
+      setHighlightedIndex(0);
+    }
+  }, [filteredOptions.length, highlightedIndex]);
+
+  function handleSelect(option: string) {
+    setQuery(option);
+    onChange(option);
+    setIsOpen(false);
+  }
+
+  function handleInputChange(e: ChangeEvent<HTMLInputElement>) {
+    const newValue = e.target.value;
+    setQuery(newValue);
+    onChange(newValue);
+    setIsOpen(!disabled);
+    setHighlightedIndex(0);
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (disabled) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex((prev) =>
+        filteredOptions.length === 0
+          ? 0
+          : (prev + 1) % filteredOptions.length
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex((prev) =>
+        filteredOptions.length === 0
+          ? 0
+          : (prev - 1 + filteredOptions.length) % filteredOptions.length
+      );
+    } else if (e.key === "Enter" && isOpen && filteredOptions.length > 0) {
+      e.preventDefault();
+      handleSelect(filteredOptions[highlightedIndex]);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1" ref={containerRef}>
+      <label className="text-[11px] uppercase tracking-wide text-slate-400">
+        {label}
+        {required ? " *" : ""}
+      </label>
+      <div className="relative">
+        <input
+          className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
+          placeholder={placeholder}
+          value={query}
+          onChange={handleInputChange}
+          onFocus={() => !disabled && setIsOpen(true)}
+          onClick={() => !disabled && setIsOpen(true)}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+        />
+
+        {isOpen && filteredOptions.length > 0 && (
+          <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-slate-900/90 shadow-lg shadow-black/40">
+            <ul className="max-h-52 overflow-y-auto text-xs text-slate-100">
+              {filteredOptions.map((option, idx) => (
+                <li key={option}>
+                  <button
+                    type="button"
+                    className={`flex w-full items-start px-3 py-2 text-left transition hover:bg-white/10 ${
+                      idx === highlightedIndex ? "bg-white/10" : ""
+                    }`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(option)}
+                  >
+                    {option}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function LumaSpeakingTestPage() {
   const [status, setStatus] = useState<Status>("idle");
@@ -77,6 +278,16 @@ export default function LumaSpeakingTestPage() {
       if (!email.trim()) {
         alert("Please enter candidate email.");
         appendLog("Missing candidate email.");
+        return;
+      }
+      if (!nativeLanguage.trim()) {
+        alert("Please select the candidate's native language.");
+        appendLog("Missing native language.");
+        return;
+      }
+      if (!testPurpose.trim()) {
+        alert("Please select the purpose of the test.");
+        appendLog("Missing test purpose.");
         return;
       }
       if (!privacyAccepted) {
@@ -562,18 +773,15 @@ export default function LumaSpeakingTestPage() {
                     disabled={!isIdle}
                   />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Native language
-                  </label>
-                  <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
-                    placeholder="Italian, Spanish, Arabic..."
-                    value={nativeLanguage}
-                    onChange={(e) => setNativeLanguage(e.target.value)}
-                    disabled={!isIdle}
-                  />
-                </div>
+                <SearchableSelect
+                  label="Native language"
+                  value={nativeLanguage}
+                  onChange={setNativeLanguage}
+                  options={NATIVE_LANGUAGES}
+                  placeholder="Select or type your native language"
+                  required
+                  disabled={!isIdle}
+                />
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
                     Country
@@ -589,18 +797,15 @@ export default function LumaSpeakingTestPage() {
               </div>
 
               <div className="mt-3 flex flex-col gap-2 text-xs text-slate-200">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Purpose of the test
-                  </label>
-                  <input
-                    className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
-                    placeholder="Placement, certification, work, university..."
-                    value={testPurpose}
-                    onChange={(e) => setTestPurpose(e.target.value)}
-                    disabled={!isIdle}
-                  />
-                </div>
+                <SearchableSelect
+                  label="Purpose of the test"
+                  value={testPurpose}
+                  onChange={setTestPurpose}
+                  options={TEST_PURPOSES}
+                  placeholder="Select or type the purpose of your test"
+                  required
+                  disabled={!isIdle}
+                />
 
                 <label className="mt-2 flex items-start gap-2 text-[11px] text-slate-300">
                   <input
