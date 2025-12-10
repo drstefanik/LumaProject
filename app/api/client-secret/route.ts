@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 
 export const maxDuration = 300;
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  project: process.env.OPENAI_PROJECT_ID,
-});
 
 export async function POST(req: Request) {
   try {
@@ -34,42 +28,54 @@ export async function POST(req: Request) {
     // estrai eventuali metadati dal body (facoltativo, ma utile)
     const { candidateId, candidateEmail } = body ?? {};
 
-    // cast ad any per evitare errori di tipo: la versione dei tipi OpenAI
-    // che abbiamo non espone ancora la proprietà `.realtime`
-    const realtimeClient = (openai as any).realtime;
-
-    const secret = await realtimeClient.clientSecrets.create({
-      // facciamo durare il client secret 1 ora
-      expires_after: {
-        anchor: "created_at",
-        seconds: 3600,
-      },
-      // configurazione della sessione realtime
-      session: {
-        type: "realtime",
-        // il modello viene dalle env
-        model: process.env.OPENAI_REALTIME_MODEL!,
-        // il modello risponde in audio (con transcript di default)
-        output_modalities: ["audio"],
-        // configurazione audio base; possiamo espandere dopo
-        audio: {
-          output: {
-            voice: "alloy",
+    // ✅ CREA IL CLIENT SECRET (NUOVA API CORRETTA)
+    // Nessun "model", nessun "session", nessun "modalities".
+    const secretResponse = await fetch(
+      "https://api.openai.com/v1/client/secrets",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ttl: 3600, // 1 ora
+          metadata: {
+            candidateId: candidateId ?? null,
+            candidateEmail: candidateEmail ?? null,
           },
-        },
-        // metadati utili per il tracciamento
-        metadata: {
-          candidateId: candidateId ?? null,
-          candidateEmail: candidateEmail ?? null,
-        },
-      },
-    });
+        }),
+      }
+    );
 
-    // ATTENZIONE: la risposta di clientSecrets.create ha la forma:
-    // { expires_at, session, value }
-    // Il front-end però si aspetta un campo "client_secret", quindi lo mappiamo.
+    if (!secretResponse.ok) {
+      const errorText = await secretResponse.text();
+      console.error(
+        "Failed to create client secret:",
+        secretResponse.status,
+        errorText
+      );
+      return NextResponse.json(
+        { error: "Failed to create client secret", details: errorText },
+        { status: secretResponse.status }
+      );
+    }
+
+    const secretData = (await secretResponse.json()) as {
+      client_secret?: string;
+    };
+
+    if (!secretData.client_secret) {
+      console.error("Client secret missing in response", secretData);
+      return NextResponse.json(
+        { error: "Client secret missing in response" },
+        { status: 500 }
+      );
+    }
+
+    // Il front-end si aspetta `client_secret`
     return NextResponse.json({
-      client_secret: secret.value,
+      client_secret: secretData.client_secret,
     });
   } catch (error) {
     console.error("Internal error creating client secret:", error);
