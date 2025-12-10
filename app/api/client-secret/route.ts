@@ -5,26 +5,20 @@ export const maxDuration = 300;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  project: process.env.OPENAI_PROJECT_ID,
 });
 
 export async function POST(req: Request) {
   try {
-    // Controllo variabili ambiente minime
-    const missing: Record<string, boolean> = {
+    const missing = {
       OPENAI_API_KEY: !process.env.OPENAI_API_KEY,
+      OPENAI_PROJECT_ID: !process.env.OPENAI_PROJECT_ID,
+      OPENAI_REALTIME_MODEL: !process.env.OPENAI_REALTIME_MODEL,
     };
 
-    const missingKeys = Object.entries(missing)
-      .filter(([, isMissing]) => isMissing)
-      .map(([key]) => key);
-
-    if (missingKeys.length > 0) {
-      console.error("Missing OpenAI env vars:", missingKeys);
+    if (Object.values(missing).some(Boolean)) {
       return NextResponse.json(
-        {
-          error: "Missing required OpenAI configuration.",
-          missing,
-        },
+        { error: "Missing required OpenAI configuration" },
         { status: 500 }
       );
     }
@@ -37,37 +31,51 @@ export async function POST(req: Request) {
       body = {};
     }
 
+    // estrai eventuali metadati dal body (facoltativo, ma utile)
     const { candidateId, candidateEmail } = body ?? {};
 
-    // ✅ Usa la nuova API corretta: openai.clientSecrets.create
-    // NIENTE "model", NIENTE "session.modalities", ecc. qui.
-    const secret = await openai.clientSecrets.create({
-      // facciamo durare il client secret 1 ora (3600 secondi)
+    // cast ad any per evitare errori di tipo: la versione dei tipi OpenAI
+    // che abbiamo non espone ancora la proprietà `.realtime`
+    const realtimeClient = (openai as any).realtime;
+
+    const secret = await realtimeClient.clientSecrets.create({
+      // facciamo durare il client secret 1 ora
       expires_after: {
+        anchor: "created_at",
         seconds: 3600,
       },
-      // opzionale: puoi aggiungere qui la sessione custom in futuro
-      // session: { ... }
+      // configurazione della sessione realtime
+      session: {
+        type: "realtime",
+        // il modello viene dalle env
+        model: process.env.OPENAI_REALTIME_MODEL!,
+        // il modello risponde in audio (con transcript di default)
+        output_modalities: ["audio"],
+        // configurazione audio base; possiamo espandere dopo
+        audio: {
+          output: {
+            voice: "alloy",
+          },
+        },
+        // metadati utili per il tracciamento
+        metadata: {
+          candidateId: candidateId ?? null,
+          candidateEmail: candidateEmail ?? null,
+        },
+      },
     });
 
-    // La risposta dell’SDK è del tipo:
-    // { expires_at: number, session: {...}, value: string }
-    // A noi interessa solo la stringa segreta
+    // ATTENZIONE: la risposta di clientSecrets.create ha la forma:
+    // { expires_at, session, value }
+    // Il front-end però si aspetta un campo "client_secret", quindi lo mappiamo.
     return NextResponse.json({
       client_secret: secret.value,
-      // opzionale: puoi loggare questi due per debug
-      expires_at: secret.expires_at,
-      candidateId: candidateId ?? null,
-      candidateEmail: candidateEmail ?? null,
     });
-  } catch (error: any) {
-    console.error("Error from OpenAI when creating client secret:", error);
-
-    const errPayload =
-      error?.error
-        ? { error: error.error.message, details: error.error }
-        : { error: "Failed to create client secret" };
-
-    return NextResponse.json(errPayload, { status: 500 });
+  } catch (error) {
+    console.error("Internal error creating client secret:", error);
+    return NextResponse.json(
+      { error: "Failed to create client secret" },
+      { status: 500 }
+    );
   }
 }
