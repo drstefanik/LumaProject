@@ -45,10 +45,7 @@ type LumaReportRecord = {
 };
 
 export async function saveLumaReport(record: LumaReportRecord) {
-  const candidateName = `${record.firstName ?? ""} ${record.lastName ?? ""}`.trim();
-
   const fields: Record<string, any> = {
-    Candidate: candidateName || undefined,
     CandidateEmail: record.email,
     CEFR_Level: record.cefrLevel ?? null,
     Accent: record.accent ?? null,
@@ -65,9 +62,7 @@ export async function saveLumaReport(record: LumaReportRecord) {
     RawEvaluationText: record.rawJson,
   };
 
-  if (!candidateName) {
-    delete fields.Candidate;
-  }
+  console.log("[Airtable] LUMA report fields", fields);
 
   const created = await lumaReportsTable().create([{ fields }]);
   return created[0]?.getId?.() ?? null;
