@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
 const REALTIME_MODEL =
-  process.env.NEXT_PUBLIC_REALTIME_MODEL ?? "gpt-4o-realtime-preview-2024-12-17";
+  process.env.NEXT_PUBLIC_REALTIME_MODEL ?? "gpt-realtime";
 
 type ReportState = {
   rawText: string;
@@ -241,10 +241,8 @@ export default function LumaSpeakingTestPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const sessionInitializedRef = useRef(false);
   const responseMetadataRef = useRef<Record<string, string | undefined>>({});
 
   const reportBufferRef = useRef<string>("");
@@ -252,6 +250,7 @@ export default function LumaSpeakingTestPage() {
   const candidateFullName = `${firstName} ${lastName}`.trim();
 
   function appendLog(msg: string) {
+    console.log(`[LUMA] ${msg}`);
     setLog((prev) => [...prev, `${new Date().toLocaleTimeString()} – ${msg}`]);
   }
 
@@ -276,7 +275,6 @@ export default function LumaSpeakingTestPage() {
 
     return () => {
       peerRef.current?.close();
-      wsRef.current?.close();
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       stopTimer();
     };
@@ -329,10 +327,14 @@ export default function LumaSpeakingTestPage() {
         return;
       }
 
+      peerRef.current?.close();
+      peerRef.current = null;
+      dataChannelRef.current?.close();
+      dataChannelRef.current = null;
+
       setReport(null);
       setCandidateId(null);
       reportBufferRef.current = "";
-      sessionInitializedRef.current = false;
       responseMetadataRef.current = {};
       setStatus("connecting");
 
@@ -375,13 +377,8 @@ export default function LumaSpeakingTestPage() {
       console.log("[LUMA] Candidate saved");
       appendLog("Requesting client secret from backend...");
 
-      const res = await fetch("/api/client-secret", {
+      const res = await fetch("/api/voice/client-secret", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          candidateId: backendCandidateId,
-          candidateEmail: email.trim(),
-        }),
       });
 
       if (!res.ok) {
@@ -402,47 +399,26 @@ export default function LumaSpeakingTestPage() {
         return;
       }
 
+      appendLog("Requesting microphone access...");
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStreamRef.current = stream;
+        appendLog("Microphone access granted.");
+      } catch (err) {
+        appendLog("Microphone permission denied or failed.");
+        setStatus("idle");
+        alert("Microphone access denied. Please enable microphone access and try again.");
+        return;
+      }
+
       const pc = new RTCPeerConnection();
       peerRef.current = pc;
 
+      stream.getAudioTracks().forEach((track) => pc.addTrack(track, stream));
+
       let hasLoggedRemoteAudio = false;
       let firstModelOutputLogged = false;
-
-      async function ensureMicStream() {
-        if (micStreamRef.current) return micStreamRef.current;
-
-        appendLog("Requesting microphone access...");
-        console.log("[LUMA] Requesting microphone access...");
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-          });
-          micStreamRef.current = stream;
-          console.log("[LUMA] Microphone stream acquired", stream);
-          appendLog("Microphone access granted.");
-          return stream;
-        } catch (err) {
-          console.error("[LUMA] getUserMedia error", err);
-          appendLog("Microphone permission denied or failed.");
-          setStatus("idle");
-          throw err;
-        }
-      }
-
-      async function attachMicrophoneTracks() {
-        const stream = await ensureMicStream();
-        const senders = pc.getSenders();
-
-        stream.getAudioTracks().forEach((track) => {
-          const alreadyAdded = senders.some((sender) => sender.track === track);
-          if (!alreadyAdded) {
-            pc.addTrack(track, stream);
-          }
-        });
-
-        console.log("Microphone tracks attached to RTCPeerConnection");
-        appendLog("Microphone connected to LUMA session.");
-      }
 
       pc.ontrack = (event) => {
         if (!audioRef.current) return;
@@ -468,84 +444,61 @@ export default function LumaSpeakingTestPage() {
       const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
 
+      const sessionInstructions = (() => {
+        const contextLines: string[] = [
+          `The candidate's name is "${candidateFullName}".`,
+        ];
+
+        if (nativeLanguage) {
+          contextLines.push(`The candidate's native language is ${nativeLanguage}.`);
+        }
+
+        if (country) {
+          contextLines.push(`The candidate is currently in ${country}.`);
+        }
+
+        if (testPurpose) {
+          contextLines.push(`The purpose of this test is: ${testPurpose}.`);
+        }
+
+        return [
+          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
+          ...contextLines,
+          "Keep the conversation flowing naturally and encourage the candidate to speak.",
+        ].join("\n");
+      })();
+
       dc.onopen = () => {
         appendLog("Data channel open. Configuring LUMA session...");
-        console.log("Data channel opened");
         setStatus("active");
         startTimer();
+
+        const sessionUpdate = {
+          type: "session.update",
+          session: {
+            type: "realtime",
+            model: REALTIME_MODEL,
+            instructions: sessionInstructions,
+          },
+        } as const;
+
+        const greetingEvent = {
+          type: "response.create",
+          response: {
+            metadata: { purpose: "initial_greeting" },
+            instructions:
+              "Hi, I am LUMA, your AI speaking examiner. Tell me about yourself when you are ready.",
+            modalities: ["text", "audio"],
+          },
+        } as const;
+
+        dc.send(JSON.stringify(sessionUpdate));
+        dc.send(JSON.stringify(greetingEvent));
       };
 
       dc.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-
-          if (msg.type === "session.created") {
-            if (sessionInitializedRef.current) return;
-            sessionInitializedRef.current = true;
-            appendLog("Session created. Sending configuration and greeting...");
-            console.log("Realtime session.created received");
-
-            const contextLines: string[] = [
-              `The candidate's name is "${candidateFullName}".`,
-            ];
-
-            if (nativeLanguage) {
-              contextLines.push(
-                `The candidate's native language is ${nativeLanguage}.`
-              );
-            }
-
-            if (country) {
-              contextLines.push(`The candidate is currently in ${country}.`);
-            }
-
-            if (testPurpose) {
-              contextLines.push(`The purpose of this test is: ${testPurpose}.`);
-            }
-
-            const systemInstructions = [
-              "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
-              ...contextLines,
-              "Keep the conversation flowing naturally and encourage the candidate to speak.",
-            ].join("\n");
-
-            const sessionUpdate = {
-              type: "session.update",
-              session: {
-                model: REALTIME_MODEL,
-                voice: "alloy",
-                instructions: systemInstructions,
-                turn_detection: {
-                  type: "server_vad",
-                  create_response: true,
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 500,
-                },
-                output_audio_format: "pcm16",
-              },
-            } as const;
-
-            const greetingText =
-              "Hi, I am LUMA, your AI speaking examiner. Tell me about yourself when you are ready.";
-
-            const greetingEvent = {
-              type: "response.create",
-              response: {
-                metadata: { purpose: "initial_greeting" },
-                instructions: greetingText,
-                modalities: ["text", "audio"],
-                output_audio_format: "pcm16",
-                voice: "alloy",
-              },
-            } as const;
-
-            dc.send(JSON.stringify(sessionUpdate));
-            dc.send(JSON.stringify(greetingEvent));
-            console.log("Sent session.update and initial greeting to LUMA");
-            appendLog("Session configured. LUMA will greet the candidate.");
-            return;
-          }
 
           if (
             msg.type === "response.output_audio_transcript.delta" ||
@@ -603,132 +556,43 @@ export default function LumaSpeakingTestPage() {
           }
 
           if (msg.type === "response.done") {
-            appendLog("Response streaming completed.");
+            appendLog("Response finished.");
             return;
           }
 
-          if (msg.type === "error") {
-            console.error("LUMA Realtime error:", msg.error || msg);
-            appendLog("ERROR from Realtime API: " + msg.error?.message);
-            return;
-          }
-
-          if (msg.type) {
-            appendLog("Event: " + msg.type);
-          }
-        } catch {
-          // ignore non-JSON message
+          appendLog(`Event: ${msg.type}`);
+        } catch (err: any) {
+          console.error("Error parsing data channel message", err);
         }
       };
 
-      const url =
-        `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(REALTIME_MODEL)}` +
-        `&client_secret=${encodeURIComponent(clientSecret)}`;
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      await pc.setLocalDescription(offer);
 
-      type RealtimeSignalMessage =
-        | { type: "server_description"; sdp?: RTCSessionDescriptionInit }
-        | { type: "ice_candidate"; candidate?: RTCIceCandidateInit }
-        | { type: "error"; error?: { message?: string } }
-        | { type?: string; [key: string]: any };
+      appendLog("Sending SDP offer to OpenAI Realtime API...");
+      const callRes = await fetch(
+        "https://api.openai.com/v1/realtime/calls?model=gpt-realtime",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${clientSecret}`,
+            "Content-Type": "application/sdp",
+          },
+          body: offer.sdp ?? "",
+        }
+      );
 
-      ws.onerror = (event) => {
-        console.error("Realtime WebSocket error:", event);
-        appendLog("Realtime connection error.");
+      if (!callRes.ok) {
+        const errorText = await callRes.text();
+        appendLog("Failed to start realtime call: " + errorText);
         setStatus("idle");
         stopTimer();
-        stopMicrophoneTracks();
-      };
+        return;
+      }
 
-      ws.onclose = () => {
-        setStatus((prev) => {
-          if (prev !== "idle") {
-            appendLog("Realtime connection closed.");
-            stopTimer();
-            stopMicrophoneTracks();
-          }
-          return "idle";
-        });
-      };
-
-      pc.onicecandidate = (event) => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-          return;
-        }
-        if (event.candidate) {
-          wsRef.current.send(
-            JSON.stringify({
-              type: "ice_candidate",
-              candidate: event.candidate,
-            })
-          );
-        } else {
-          wsRef.current.send(JSON.stringify({ type: "ice_candidate_complete" }));
-        }
-      };
-
-      ws.onmessage = async (event) => {
-        try {
-          const message = JSON.parse(event.data) as RealtimeSignalMessage;
-          if (message.type === "server_description" && message.sdp) {
-            await pc.setRemoteDescription(message.sdp);
-            appendLog("Received remote description from LUMA.");
-          } else if (message.type === "ice_candidate" && message.candidate) {
-            await pc.addIceCandidate(message.candidate);
-          } else if (message.type === "error") {
-            console.error("Realtime error:", message.error || message);
-            appendLog(
-              "Error from Realtime API: " + (message.error?.message || "unknown")
-            );
-            setStatus("idle");
-            stopTimer();
-            stopMicrophoneTracks();
-          }
-        } catch (error) {
-          console.error("Failed to parse signaling message:", error);
-        }
-      };
-
-      const sendClientDescription = () => {
-        if (
-          ws.readyState === WebSocket.OPEN &&
-          pc.localDescription?.sdp &&
-          pc.localDescription?.type
-        ) {
-          ws.send(
-            JSON.stringify({
-              type: "client_description",
-              sdp: pc.localDescription,
-            })
-          );
-          appendLog("Sent SDP offer to OpenAI Realtime API.");
-        }
-      };
-
-      const createAndSendOffer = async () => {
-        await attachMicrophoneTracks();
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        sendClientDescription();
-      };
-
-      ws.onopen = async () => {
-        console.log("[LUMA] Realtime WebSocket opened");
-        appendLog("Realtime WebSocket opened.");
-        setStatus("active");
-        startTimer();
-        try {
-          await createAndSendOffer();
-        } catch (error: any) {
-          console.error("Failed to start signaling", error);
-          appendLog("Failed to start signaling: " + (error?.message || "unknown"));
-          setStatus("idle");
-          stopTimer();
-        }
-      };
-
-      appendLog("Connecting to LUMA Realtime...");
+      const answerSdp = await callRes.text();
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+      appendLog("Realtime session active.");
     } catch (err: any) {
       console.error(err);
       appendLog("Error: " + (err?.message || "unknown"));
@@ -829,9 +693,8 @@ export default function LumaSpeakingTestPage() {
   function hardCloseSession() {
     peerRef.current?.close();
     peerRef.current = null;
-    wsRef.current?.close();
-    wsRef.current = null;
-    sessionInitializedRef.current = false;
+    dataChannelRef.current?.close();
+    dataChannelRef.current = null;
     stopMicrophoneTracks();
     setStatus("idle");
     stopTimer();
