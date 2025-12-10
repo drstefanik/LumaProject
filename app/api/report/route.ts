@@ -39,7 +39,11 @@ function validatePayload(body: any) {
   if (!candidate.firstName || !candidate.lastName || !candidate.email) return false;
 
   if (!evaluation || typeof evaluation !== "object") return false;
-  if (!evaluation.rawJson && !evaluation.parsed) return false;
+  const hasRaw =
+    typeof evaluation.rawJson === "string" &&
+    evaluation.rawJson.trim().length > 0;
+  const hasParsed = !!evaluation.parsed;
+  if (!hasRaw && !hasParsed) return false;
 
   return true;
 }
