@@ -403,35 +403,23 @@ export default function LumaSpeakingTestPage() {
         }
 
         const instructions = [
-          "You are LUMA (Language Understanding Mastery Assistant), the official British Institutes speaking examiner AI.",
+          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English and guide the candidate through a speaking test.",
           "",
           ...contextLines,
-          "",
-          "ROLE",
-          "- You conduct a realistic English speaking exam (placement / proficiency).",
-          "- Ask questions, keep the conversation natural, and listen carefully.",
-          "- Do NOT give the final evaluation or explicit score during the conversation.",
-          "",
-          "LANGUAGE",
-          "- You MUST ALWAYS speak ONLY in English.",
-          "- You MUST NEVER speak Italian or any other language.",
-          '- If the candidate uses another language, say briefly in English: "Please answer in English. This speaking test must be completed in English only."',
-          "",
-          "INTERACTION",
-          "- Ask one question at a time and wait.",
-          '- If you do not understand, say: "I\'m sorry, could you repeat that in English, please?"',
-          '- If the candidate is silent, say: "Take your time. Please answer in English when you are ready."',
-          "",
-          "EVALUATION",
-          "- Do not mention CEFR levels, scores or bands during the conversation.",
-          '- Wait for a "response.create" event with metadata.purpose = "speaking_report" before you generate a JSON report.',
         ].join("\n");
 
         const sessionUpdate = {
           type: "session.update",
           session: {
-            type: "realtime",
             instructions,
+            audio: {
+              output: {
+                voice: "alloy",
+              },
+            },
+            turn_detection: {
+              type: "server_vad",
+            },
             metadata: {
               candidate_id: backendCandidateId,
               candidate_name: candidateFullName,
@@ -440,6 +428,15 @@ export default function LumaSpeakingTestPage() {
         };
 
         dc.send(JSON.stringify(sessionUpdate));
+        dc.send(
+          JSON.stringify({
+            type: "response.create",
+            response: {
+              instructions:
+                "Greet the candidate briefly and explain that this is an English speaking test. Ask their name and where they are from.",
+            },
+          })
+        );
         appendLog("Session configured. Start speaking in English!");
       };
 
@@ -511,6 +508,7 @@ export default function LumaSpeakingTestPage() {
           } else if (msg.type === "response.done") {
             appendLog("Evaluation response completed.");
           } else if (msg.type === "error") {
+            console.error("LUMA Realtime error:", msg.error || msg);
             appendLog("ERROR from Realtime API: " + msg.error?.message);
           } else if (msg.type) {
             appendLog("Event: " + msg.type);
