@@ -144,6 +144,7 @@ async function saveReportLocally(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("[/api/report] Incoming payload", JSON.stringify(body));
 
     if (!validatePayload(body)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -186,6 +187,11 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    console.log(
+      "[/api/report] Report generated and saved. airtableId =",
+      airtableId
+    );
 
     return NextResponse.json({
       success: true,
