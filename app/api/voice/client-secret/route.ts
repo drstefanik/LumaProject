@@ -1,1 +1,1 @@
-export { POST, maxDuration } from "../../client-secret/route";
+export { maxDuration, POST } from "../../client-secret/route";
