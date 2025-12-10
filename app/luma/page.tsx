@@ -3,9 +3,6 @@
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
-const REALTIME_MODEL =
-  process.env.NEXT_PUBLIC_REALTIME_MODEL ?? "gpt-4o-realtime-preview";
-
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
 type ReportState = {
@@ -424,10 +421,8 @@ export default function LumaSpeakingTestPage() {
         const sessionUpdate = {
           type: "session.update",
           session: {
-            // LUMA Realtime session: il modello è configurato solo qui, lato client
-            model: REALTIME_MODEL,
             modalities: ["audio", "text"],
-            input_audio_transcription: { enabled: true },
+            input_audio_transcription: { model: "gpt-4o-transcribe" },
             instructions,
             audio: {
               output: {
@@ -436,10 +431,6 @@ export default function LumaSpeakingTestPage() {
             },
             turn_detection: {
               type: "server_vad",
-            },
-            metadata: {
-              candidate_id: backendCandidateId,
-              candidate_name: candidateFullName,
             },
           },
         };
