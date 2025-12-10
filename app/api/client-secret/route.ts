@@ -4,21 +4,29 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {
-    // Check env vars
-    if (!process.env.OPENAI_API_KEY) {
+    const missing = {
+      OPENAI_API_KEY: !process.env.OPENAI_API_KEY,
+      OPENAI_PROJECT_ID: !process.env.OPENAI_PROJECT_ID,
+      OPENAI_REALTIME_MODEL: !process.env.OPENAI_REALTIME_MODEL,
+    };
+
+    if (Object.values(missing).some(Boolean)) {
       return NextResponse.json(
-        { error: "Missing OPENAI_API_KEY" },
+        { error: "Missing required OpenAI configuration" },
         { status: 500 }
       );
     }
 
-    // Read metadata (optional)
+    // Provo a leggere eventuali dati sul candidato (non obbligatori)
     let body: any = {};
     try {
       body = await req.json();
-    } catch {}
+    } catch {
+      body = {};
+    }
 
-    const { candidateId, candidateEmail } = body;
+    // estrai eventuali metadati dal body (facoltativo, ma utile)
+    const { candidateId, candidateEmail } = body ?? {};
 
     // ✅ CREA IL CLIENT SECRET (NUOVA API CORRETTA)
     // Nessun "model", nessun "session", nessun "modalities".
@@ -42,14 +50,20 @@ export async function POST(req: Request) {
 
     if (!secretResponse.ok) {
       const errorText = await secretResponse.text();
-      console.error("Failed to create client secret:", secretResponse.status, errorText);
+      console.error(
+        "Failed to create client secret:",
+        secretResponse.status,
+        errorText
+      );
       return NextResponse.json(
         { error: "Failed to create client secret", details: errorText },
         { status: secretResponse.status }
       );
     }
 
-    const secretData = (await secretResponse.json()) as { client_secret?: string };
+    const secretData = (await secretResponse.json()) as {
+      client_secret?: string;
+    };
 
     if (!secretData.client_secret) {
       console.error("Client secret missing in response", secretData);
@@ -59,13 +73,14 @@ export async function POST(req: Request) {
       );
     }
 
+    // Il front-end si aspetta `client_secret`
     return NextResponse.json({
       client_secret: secretData.client_secret,
     });
-  } catch (error: any) {
-    console.error("Error creating client secret:", error);
+  } catch (error) {
+    console.error("Internal error creating client secret:", error);
     return NextResponse.json(
-      { error: "Failed to create client secret", details: error },
+      { error: "Failed to create client secret" },
       { status: 500 }
     );
   }
