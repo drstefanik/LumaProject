@@ -542,10 +542,10 @@ export default function LumaSpeakingTestPage() {
       wsRef.current = ws;
 
       type RealtimeSignalMessage =
-        | { type: "server_description"; sdp: RTCSessionDescriptionInit }
-        | { type: "ice_candidate"; candidate: RTCIceCandidateInit }
+        | { type: "server_description"; sdp?: RTCSessionDescriptionInit }
+        | { type: "ice_candidate"; candidate?: RTCIceCandidateInit }
         | { type: "error"; error?: { message?: string } }
-        | Record<string, any>;
+        | { type?: string; [key: string]: any };
 
       ws.onerror = (event) => {
         console.error("Realtime WebSocket error:", event);
