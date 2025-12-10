@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs/promises";
+import path from "path";
 
 import { saveLumaReport } from "@/lib/airtable";
 import { openai } from "@/lib/openai";
@@ -106,6 +108,39 @@ async function generateReport(candidate: CandidatePayload, evaluation: Evaluatio
   return reportText;
 }
 
+async function saveReportLocally(
+  candidate: CandidatePayload,
+  evaluation: EvaluationPayload,
+  reportText: string
+) {
+  const dir = path.join(process.cwd(), "report");
+  await fs.mkdir(dir, { recursive: true });
+
+  const baseName = (candidate.email || "report").replace(/[^a-zA-Z0-9._-]/g, "_");
+  let filePath = path.join(dir, `${baseName}.json`);
+  let counter = 2;
+
+  while (true) {
+    try {
+      await fs.access(filePath);
+      filePath = path.join(dir, `${baseName}_${counter}.json`);
+      counter += 1;
+    } catch {
+      break;
+    }
+  }
+
+  const payload = {
+    candidate,
+    evaluation,
+    reportText,
+    createdAt: new Date().toISOString(),
+  };
+
+  await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
+  return filePath;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -116,31 +151,6 @@ export async function POST(req: NextRequest) {
 
     const candidate = body.candidate as CandidatePayload;
     const evaluation = body.evaluation as EvaluationPayload;
-
-    let airtableId: string | null = null;
-
-    try {
-      airtableId = await saveLumaReport({
-        firstName: candidate.firstName!,
-        lastName: candidate.lastName!,
-        email: candidate.email!,
-        dateOfBirth: candidate.dateOfBirth,
-        nativeLanguage: candidate.nativeLanguage,
-        country: candidate.country,
-        testPurpose: candidate.testPurpose,
-        consentPrivacy: candidate.consentPrivacy,
-        cefrLevel: evaluation.parsed?.cefr_level,
-        accent: evaluation.parsed?.accent,
-        globalScore: evaluation.parsed?.global_score,
-        rawJson: stringifyEvaluation(evaluation),
-      });
-    } catch (error) {
-      console.error("Error saving LUMA report to Airtable", error);
-      return NextResponse.json(
-        { error: "Failed to save report to Airtable" },
-        { status: 500 }
-      );
-    }
 
     let reportText: string;
 
@@ -154,9 +164,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let airtableId: string | null = null;
+    let localReportPath: string | null = null;
+
+    try {
+      airtableId = await saveLumaReport({
+        candidateName: `${candidate.firstName!} ${candidate.lastName!}`.trim(),
+        candidateEmail: candidate.email!,
+        cefrLevel: evaluation.parsed?.cefr_level,
+        accent: evaluation.parsed?.accent,
+        strengths: evaluation.parsed?.strengths,
+        weaknesses: evaluation.parsed?.weaknesses,
+        recommendations: evaluation.parsed?.recommendations,
+        overallComment: evaluation.parsed?.overall_comment,
+        rawEvaluationText: stringifyEvaluation(evaluation),
+      });
+    } catch (error) {
+      console.error("Error saving LUMA report to Airtable", error);
+      return NextResponse.json(
+        { error: "Failed to save report to Airtable" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       airtableId,
+      localReportPath,
       reportText,
       meta: {
         cefrLevel: evaluation.parsed?.cefr_level ?? null,
