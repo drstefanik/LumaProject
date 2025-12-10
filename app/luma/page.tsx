@@ -344,7 +344,7 @@ export default function LumaSpeakingTestPage() {
       setCandidateId(backendCandidateId);
       appendLog("Requesting client secret from backend...");
 
-      const res = await fetch("/api/client-secret", {
+      const res = await fetch("/api/voice/client-secret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
