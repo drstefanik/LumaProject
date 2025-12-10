@@ -1,37 +1,46 @@
-import OpenAI from "openai";
+// app/api/client-secret/route.ts
 import { NextResponse } from "next/server";
-
-export const maxDuration = 60;
-
-const apiKey = process.env.OPENAI_API_KEY;
-const realtimeModel = process.env.OPENAI_REALTIME_MODEL;
-const projectId = process.env.OPENAI_PROJECT_ID;
+import OpenAI from "openai";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   project: process.env.OPENAI_PROJECT_ID,
 });
 
-const BASE_PROMPT =
-  "You are LUMA, an English speaking test examiner for British Institutes. Conduct a CEFR-aligned speaking test and at the end output a detailed evaluation in JSON with fields: candidate_name, cefr_level, accent, strengths, weaknesses, recommendations, overall_comment.";
-
-export async function POST() {
-  if (!apiKey || !projectId || !realtimeModel) {
-    return NextResponse.json(
-      {
-        error: "Missing required OpenAI configuration.",
-        missing: {
-          OPENAI_API_KEY: !!apiKey,
-          OPENAI_PROJECT_ID: !!projectId,
-          OPENAI_REALTIME_MODEL: !!realtimeModel,
-        },
-      },
-      { status: 500 }
-    );
-  }
-
+export async function POST(req: Request) {
   try {
-    const clientSecret = await (openai as any).clientSecrets.create({
+    const missing: Record<string, boolean> = {
+      OPENAI_API_KEY: !process.env.OPENAI_API_KEY,
+      OPENAI_PROJECT_ID: !process.env.OPENAI_PROJECT_ID,
+      OPENAI_REALTIME_MODEL: !process.env.OPENAI_REALTIME_MODEL,
+    };
+
+    const missingKeys = Object.entries(missing)
+      .filter(([, isMissing]) => isMissing)
+      .map(([key]) => key);
+
+    if (missingKeys.length > 0) {
+      console.error("Missing OpenAI env vars:", missingKeys);
+      return NextResponse.json(
+        {
+          error: "Missing required OpenAI configuration.",
+          missing,
+        },
+        { status: 500 }
+      );
+    }
+
+    // Optional: read candidate metadata (if the client sends it)
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+
+    const { candidateId, candidateEmail } = body;
+
+    const clientSecret = await openai.clientSecrets.create({
       project: process.env.OPENAI_PROJECT_ID!,
       display_name: "LUMA Realtime Session",
       expires_after: {
@@ -43,14 +52,17 @@ export async function POST() {
         model: process.env.OPENAI_REALTIME_MODEL!,
         modalities: ["audio", "text"],
         input_audio_transcription: { enabled: true },
+        // metadata opzionale, utile per tracciare chi è in sessione
+        metadata: {
+          candidateId: candidateId ?? undefined,
+          candidateEmail: candidateEmail ?? undefined,
+        },
       },
     });
 
-    return NextResponse.json({
-      client_secret: clientSecret.secret,
-    });
-  } catch (err) {
-    console.error("Internal error creating client secret:", err);
+    return NextResponse.json({ client_secret: clientSecret.secret });
+  } catch (error) {
+    console.error("Internal error creating client secret:", error);
     return NextResponse.json(
       { error: "Failed to create client secret" },
       { status: 500 }
