@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
     const { candidateId, candidateEmail } = body;
 
-    const clientSecret = await openai.clientSecrets.create({
+      const clientSecret = await openai.realtime.clientSecrets.create({
       project: process.env.OPENAI_PROJECT_ID!,
       display_name: "LUMA Realtime Session",
       expires_after: {
