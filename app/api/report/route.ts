@@ -151,7 +151,7 @@ async function saveReportLocally(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    console.log("[/api/report] Incoming payload", JSON.stringify(body));
+    console.log("[/api/report] Incoming payload", body);
 
     if (!validatePayload(body)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });

@@ -997,19 +997,23 @@ export default function LumaSpeakingTestPage() {
       parsed = JSON.parse(trimmed);
     } catch (error) {
       console.error("[LUMA] Failed to parse evaluation JSON", error);
-      appendLog("Invalid evaluation JSON received. Skipping report submission.");
-      setStatus("active");
-      return;
+      appendLog("Invalid evaluation JSON received. Sending raw text only.");
+      parsed = undefined;
     }
+
+    console.log("[LUMA] Parsed evaluation object:", parsed);
 
     if (!isValidParsedEvaluation(parsed)) {
-      console.error("[LUMA] Evaluation JSON missing required fields", parsed);
-      appendLog("Evaluation JSON missing required fields. Report not sent.");
-      setStatus("active");
-      return;
+      console.warn(
+        "[LUMA] Evaluation JSON missing required fields, sending raw text anyway"
+      );
+      appendLog("Evaluation JSON missing required fields. Sending raw text anyway.");
     }
 
-    const finalParsedReport: ReportState = { rawText: trimmed, parsed };
+    const finalParsedReport: ReportState = {
+      rawText: trimmed,
+      parsed: parsed || undefined,
+    };
     setReport(finalParsedReport);
     await submitReport(finalParsedReport);
   }
