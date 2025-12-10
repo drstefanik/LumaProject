@@ -18,7 +18,11 @@ type ReportState = {
     weaknesses?: string[];
     recommendations?: string[];
     overall_comment?: string;
+    global_score?: number;
   };
+  formatted?: string;
+  airtableId?: string | null;
+  meta?: { cefrLevel?: string | null; globalScore?: number | null };
 };
 
 const NATIVE_LANGUAGES = [
@@ -226,6 +230,7 @@ export default function LumaSpeakingTestPage() {
   const [log, setLog] = useState<string[]>([]);
   const [timer, setTimer] = useState<number>(0);
   const [report, setReport] = useState<ReportState | null>(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [candidateId, setCandidateId] = useState<string | null>(null);
 
   // candidate form
@@ -632,6 +637,58 @@ export default function LumaSpeakingTestPage() {
     dc.send(JSON.stringify(event));
   }
 
+  async function submitReport(finalReport: ReportState) {
+    setIsSubmittingReport(true);
+    appendLog("Submitting evaluation to /api/report...");
+
+    const payload = {
+      candidate: {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        dateOfBirth: birthDate,
+        nativeLanguage: nativeLanguage.trim(),
+        country: country.trim(),
+        testPurpose: testPurpose.trim(),
+        consentPrivacy: privacyAccepted,
+      },
+      evaluation: {
+        rawJson: finalReport.rawText,
+        parsed: finalReport.parsed,
+      },
+    };
+
+    try {
+      const resp = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        appendLog("Error saving report: " + text);
+        alert("Failed to generate the final report. Please try again.");
+        return;
+      }
+
+      const saved = await resp.json();
+      setReport((prev) => ({
+        ...(prev || finalReport),
+        formatted: saved.reportText,
+        meta: saved.meta,
+        airtableId: saved.airtableId ?? null,
+      }));
+      appendLog("Report saved and formatted.");
+    } catch (e: any) {
+      appendLog("Network error while saving report: " + (e?.message || "unknown"));
+      alert("Network error while generating the report. Please try again.");
+    } finally {
+      setIsSubmittingReport(false);
+      setStatus("active");
+    }
+  }
+
   async function processFinalReport(text: string) {
     const trimmed = text.trim();
     let parsed: ReportState["parsed"] | undefined;
@@ -642,45 +699,9 @@ export default function LumaSpeakingTestPage() {
       parsed = undefined;
     }
 
-    setReport({ rawText: trimmed, parsed });
-
-    if (!candidateId) {
-      appendLog("Missing candidate ID; unable to store report.");
-      setStatus("active");
-      return;
-    }
-
-    const payload = {
-      candidateId,
-      rawEvaluationText: trimmed,
-      rawEvaluationJson: parsed,
-    };
-
-    appendLog("Sending report to backend (Airtable)...");
-    try {
-      const resp = await fetch("/api/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!resp.ok) {
-        const t = await resp.text();
-        appendLog("Error saving report: " + t);
-      } else {
-        const saved = await resp.json();
-        if (saved.report) {
-          setReport({ rawText: trimmed, parsed: saved.report });
-        }
-        appendLog("Report saved to Airtable (if configured).");
-      }
-    } catch (e: any) {
-      appendLog(
-        "Network error while saving report: " + (e?.message || "unknown")
-      );
-    } finally {
-      setStatus("active");
-    }
+    const finalReport = { rawText: trimmed, parsed };
+    setReport(finalReport);
+    await submitReport(finalReport);
   }
 
   function stopTest() {
@@ -975,8 +996,24 @@ export default function LumaSpeakingTestPage() {
                 </p>
               )}
 
+              {isSubmittingReport && (
+                <p className="text-[12px] text-slate-300">
+                  Generating the final formatted report...
+                </p>
+              )}
+
               {report && (
-                <div className="space-y-3 text-[12px]">
+                <div className="space-y-4 text-[12px]">
+                  {report.formatted && (
+                    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/40 p-4 text-left text-sm leading-relaxed text-slate-100">
+                      {report.formatted
+                        .split(/\n{2,}/)
+                        .map((paragraph, idx) => (
+                          <p key={idx}>{paragraph.trim()}</p>
+                        ))}
+                    </div>
+                  )}
+
                   {report.parsed ? (
                     <>
                       {report.parsed.cefr_level && (
