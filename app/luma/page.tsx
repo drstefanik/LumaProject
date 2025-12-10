@@ -250,6 +250,10 @@ export default function LumaSpeakingTestPage() {
   const micStreamRef = useRef<MediaStream | null>(null);
   const responseMetadataRef = useRef<Record<string, string | undefined>>({});
 
+  const statusRef = useRef<Status>("idle");
+
+  const reportResponseIdRef = useRef<string | null>(null);
+
   const reportBufferRef = useRef<string>("");
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
@@ -271,6 +275,10 @@ export default function LumaSpeakingTestPage() {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
   }
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -501,9 +509,13 @@ export default function LumaSpeakingTestPage() {
         dc.send(JSON.stringify(greetingEvent));
       };
 
-      dc.onmessage = (event) => {
+      dc.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data);
+
+          if (statusRef.current === "evaluating") {
+            appendLog("Realtime event (evaluating): " + msg.type);
+          }
 
           if (
             msg.type === "response.output_audio_transcript.delta" ||
@@ -518,12 +530,80 @@ export default function LumaSpeakingTestPage() {
           if (msg.type === "response.created" && msg.response?.id) {
             responseMetadataRef.current[msg.response.id] =
               msg.response.metadata?.purpose;
-            appendLog("Response created: " + msg.response.id);
+            if (msg.response.metadata?.purpose === "speaking_report") {
+              reportResponseIdRef.current = msg.response.id;
+              reportBufferRef.current = "";
+              appendLog(
+                "Started receiving speaking_report response: " +
+                  msg.response.id
+              );
+            } else {
+              appendLog("Response created: " + msg.response.id);
+            }
             return;
           }
 
           if (msg.type === "response.output_item.added") {
+            const responseId = msg.item?.response_id ?? msg.response_id;
+            if (
+              msg.item?.metadata?.purpose === "speaking_report" &&
+              responseId
+            ) {
+              reportResponseIdRef.current = responseId;
+              reportBufferRef.current = "";
+              appendLog(
+                "Started receiving speaking_report response: " + responseId
+              );
+              return;
+            }
+
             appendLog("Output item added to response.");
+            return;
+          }
+
+          const relevantResponseId =
+            msg.response_id ?? msg.response?.id ?? msg.item?.response_id;
+
+          if (
+            reportResponseIdRef.current &&
+            relevantResponseId === reportResponseIdRef.current &&
+            (msg.type === "response.output_text.delta" ||
+              msg.type === "response.content_part.added" ||
+              msg.type === "response.text.delta")
+          ) {
+            const chunk =
+              typeof msg.delta === "string"
+                ? msg.delta
+                : typeof msg.text === "string"
+                ? msg.text
+                : Array.isArray(msg.content) &&
+                  typeof msg.content?.[0]?.text === "string"
+                ? msg.content[0].text
+                : "";
+
+            if (chunk) {
+              reportBufferRef.current += chunk;
+              appendLog(
+                "Accumulated report chars: " + reportBufferRef.current.length
+              );
+            }
+            return;
+          }
+
+          if (
+            reportResponseIdRef.current &&
+            relevantResponseId === reportResponseIdRef.current &&
+            (msg.type === "response.completed" ||
+              msg.type === "response.output_item.done" ||
+              msg.type === "response.output_text.done" ||
+              msg.type === "response.text.done")
+          ) {
+            appendLog(
+              "Speaking report completed. Calling processFinalReport..."
+            );
+            await processFinalReport(reportBufferRef.current);
+            reportResponseIdRef.current = null;
+            reportBufferRef.current = "";
             return;
           }
 
@@ -614,8 +694,8 @@ export default function LumaSpeakingTestPage() {
     }
 
     setStatus("evaluating");
-    appendLog("Requesting final written evaluation from LUMA...");
     reportBufferRef.current = "";
+    appendLog("Requesting final written evaluation from LUMA...");
 
     const instructions =
       "Now, as LUMA, produce ONLY a structured JSON evaluation of the candidate's English speaking performance. " +
@@ -635,10 +715,12 @@ export default function LumaSpeakingTestPage() {
     };
 
     dc.send(JSON.stringify(event));
+    appendLog("Evaluation request event sent on data channel.");
   }
 
   async function submitReport(finalReport: ReportState) {
     setIsSubmittingReport(true);
+    appendLog("submitReport called. Sending POST /api/report ...");
     appendLog("Submitting evaluation to /api/report...");
 
     const payload = {
@@ -691,6 +773,7 @@ export default function LumaSpeakingTestPage() {
 
   async function processFinalReport(text: string) {
     const trimmed = text.trim();
+    appendLog("processFinalReport called. Raw length: " + trimmed.length);
     let parsed: ReportState["parsed"] | undefined;
 
     try {
