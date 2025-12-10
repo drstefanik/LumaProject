@@ -1,75 +1,83 @@
-// app/api/client-secret/route.ts
 import { NextResponse } from "next/server";
 
 export const maxDuration = 300;
 
+type OpenAIClientSecretResponse = {
+  client_secret: string;
+  id?: string;
+  created_at?: number;
+  expires_at?: number;
+};
+
 export async function POST(req: Request) {
   try {
-    const missing = {
-      OPENAI_API_KEY: !process.env.OPENAI_API_KEY,
-      OPENAI_PROJECT_ID: !process.env.OPENAI_PROJECT_ID,
-      OPENAI_REALTIME_MODEL: !process.env.OPENAI_REALTIME_MODEL,
-    };
+    const { OPENAI_API_KEY } = process.env;
 
-    if (Object.values(missing).some(Boolean)) {
-      console.error("Missing OpenAI env vars:", missing);
+    if (!OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: "Missing required OpenAI configuration" },
+        { error: "Missing OPENAI_API_KEY" },
         { status: 500 }
       );
     }
 
-    // opzionale: dati candidato (non influiscono sulla chiamata)
-    let body: any = {};
+    // Body opzionale con metadati candidato
+    let candidateId: string | null = null;
+    let candidateEmail: string | null = null;
+
     try {
-      body = await req.json();
+      const body = await req.json();
+      candidateId = body?.candidateId ?? null;
+      candidateEmail = body?.candidateEmail ?? null;
     } catch {
-      body = {};
+      // niente body → va bene lo stesso
     }
-    const { candidateId, candidateEmail } = body ?? {};
 
-    // ✅ nuova API corretta: /v1/realtime/client-secrets
-    const secretResponse = await fetch(
-      "https://api.openai.com/v1/realtime/client-secrets",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-          "OpenAI-Project": process.env.OPENAI_PROJECT_ID as string,
+    // ✅ Endpoint giusto, payload giusto: SOLO ttl + metadata
+    const response = await fetch("https://api.openai.com/v1/client-secrets", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ttl: 60 * 60, // 1 ora
+        metadata: {
+          candidate_id: candidateId,
+          candidate_email: candidateEmail,
         },
-        body: JSON.stringify({
-          // quanto dura il client secret (in secondi)
-          ttl: 3600,
-          // sessione minimale: SOLO type + model
-          session: {
-            type: "realtime",
-            model: process.env.OPENAI_REALTIME_MODEL,
-          },
-          // ❌ niente session.metadata, niente session.modalities, ecc.
-        }),
-      }
-    );
+      }),
+    });
 
-    if (!secretResponse.ok) {
-      const errorText = await secretResponse.text();
+    const text = await response.text();
+
+    if (!response.ok) {
       console.error(
-        "Failed to create client secret:",
-        secretResponse.status,
-        errorText
+        "OpenAI client-secret error:",
+        response.status,
+        text
       );
       return NextResponse.json(
-        { error: "Failed to create client secret", details: errorText },
-        { status: secretResponse.status }
+        {
+          error: "Failed to create client secret",
+          details: text,
+        },
+        { status: response.status }
       );
     }
 
-    const data = (await secretResponse.json()) as {
-      client_secret?: string;
-    };
+    let data: OpenAIClientSecretResponse;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error("Invalid JSON from OpenAI client-secrets:", e, text);
+      return NextResponse.json(
+        { error: "Invalid response from OpenAI" },
+        { status: 500 }
+      );
+    }
 
     if (!data.client_secret) {
-      console.error("Client secret missing in response", data);
+      console.error("Missing client_secret in response:", data);
       return NextResponse.json(
         { error: "Client secret missing in response" },
         { status: 500 }
