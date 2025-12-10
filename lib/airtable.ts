@@ -32,31 +32,42 @@ export const reportsTable = () =>
 // ======================
 
 type LumaReportRecord = {
-  candidateName: string;
-  candidateEmail: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
   cefrLevel?: string;
   accent?: string;
-  strengths?: string[];
-  weaknesses?: string[];
-  recommendations?: string[];
+  strengths?: string[] | string;
+  weaknesses?: string[] | string;
+  recommendations?: string[] | string;
   overallComment?: string;
-  rawEvaluationText: string;
+  rawJson: string;
 };
 
 export async function saveLumaReport(record: LumaReportRecord) {
+  const candidateName = `${record.firstName ?? ""} ${record.lastName ?? ""}`.trim();
+
   const fields: Record<string, any> = {
-    // Nomi esattamente come nella tabella "Luma Reports"
-    Candidate: record.candidateName,
-    CandidateEmail: record.candidateEmail,
-    CEFR_Level: record.cefrLevel,
-    Accent: record.accent,
-    Strengths: record.strengths?.join("\n"),
-    Weaknesses: record.weaknesses?.join("\n"),
-    Recommendations: record.recommendations?.join("\n"),
-    OverallComment: record.overallComment,
-    RawEvaluationText: record.rawEvaluationText,
-    // ReportID e CreatedAt li gestisce Airtable
+    Candidate: candidateName || undefined,
+    CandidateEmail: record.email,
+    CEFR_Level: record.cefrLevel ?? null,
+    Accent: record.accent ?? null,
+    Strengths: Array.isArray(record.strengths)
+      ? record.strengths.join("\n")
+      : record.strengths ?? null,
+    Weaknesses: Array.isArray(record.weaknesses)
+      ? record.weaknesses.join("\n")
+      : record.weaknesses ?? null,
+    Recommendations: Array.isArray(record.recommendations)
+      ? record.recommendations.join("\n")
+      : record.recommendations ?? null,
+    OverallComment: record.overallComment ?? null,
+    RawEvaluationText: record.rawJson,
   };
+
+  if (!candidateName) {
+    delete fields.Candidate;
+  }
 
   const created = await lumaReportsTable().create([{ fields }]);
   return created[0]?.getId?.() ?? null;
