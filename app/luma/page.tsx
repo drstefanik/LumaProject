@@ -519,24 +519,35 @@ export default function LumaSpeakingTestPage() {
 
           if (
             statusRef.current === "evaluating" &&
-            message.type === "response.output_audio_transcript.delta"
+            message.type === "response.output_audio_transcript.delta" &&
+            typeof message.delta === "string"
           ) {
-            if (typeof message.delta === "string") {
-              reportBufferRef.current += message.delta;
-              appendLog(
-                "Accumulated report length: " + reportBufferRef.current.length
-              );
-            }
+            reportBufferRef.current += message.delta;
+            appendLog(
+              "Accumulated report length: " + reportBufferRef.current.length
+            );
             return;
           }
 
           if (
             statusRef.current === "evaluating" &&
-            message.type === "response.output_audio_transcript.done"
+            message.type === "response.output_text.delta" &&
+            typeof message.delta === "string"
+          ) {
+            reportBufferRef.current += message.delta;
+            appendLog(
+              "Accumulated report length: " + reportBufferRef.current.length
+            );
+            return;
+          }
+
+          if (
+            statusRef.current === "evaluating" &&
+            (message.type === "response.output_audio_transcript.done" ||
+              message.type === "response.output_text.done")
           ) {
             appendLog("Speaking report completed. Calling processFinalReport...");
             await processFinalReport(reportBufferRef.current);
-            reportResponseIdRef.current = null;
             reportBufferRef.current = "";
             return;
           }

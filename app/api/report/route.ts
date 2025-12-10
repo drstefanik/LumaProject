@@ -42,7 +42,10 @@ function validatePayload(body: any) {
   const hasRaw =
     typeof evaluation.rawJson === "string" &&
     evaluation.rawJson.trim().length > 0;
-  const hasParsed = !!evaluation.parsed;
+
+  const hasParsed =
+    evaluation.parsed && typeof evaluation.parsed === "object";
+
   if (!hasRaw && !hasParsed) return false;
 
   return true;
