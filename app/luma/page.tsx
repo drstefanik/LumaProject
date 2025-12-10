@@ -281,6 +281,16 @@ export default function LumaSpeakingTestPage() {
   }, [status]);
 
   useEffect(() => {
+    if (!audioRef.current) return;
+    // During evaluation, we never want LUMA to speak
+    if (status === "evaluating") {
+      audioRef.current.muted = true;
+    } else {
+      audioRef.current.muted = false;
+    }
+  }, [status]);
+
+  useEffect(() => {
     if (audioRef.current) {
       audioRef.current.autoplay = true;
       audioRef.current.setAttribute("playsinline", "true");
@@ -741,9 +751,12 @@ export default function LumaSpeakingTestPage() {
     appendLog("Requesting final written evaluation from LUMA...");
 
     const instructions =
-      "Now, as LUMA, produce ONLY a structured JSON evaluation of the candidate's English speaking performance. " +
-      "Do NOT speak this aloud, only return JSON. " +
-      "Use this exact schema: " +
+      "You are an English speaking examiner. " +
+      "The user has just completed a speaking test. " +
+      "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
+      "Do not guess topics that were not clearly present. " +
+      "Do not mention visa, immigration or specific purposes unless they were explicitly stated by the candidate. " +
+      "Return ONLY valid JSON, with no extra text, using this exact schema: " +
       '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
 
     const event = {
