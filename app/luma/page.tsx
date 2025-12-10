@@ -290,7 +290,7 @@ export default function LumaSpeakingTestPage() {
   }
 
   async function startTest() {
-    console.log("Start test clicked");
+    console.log("[LUMA] Start test clicked");
 
     try {
       if (typeof window === "undefined") {
@@ -372,6 +372,7 @@ export default function LumaSpeakingTestPage() {
       }
 
       setCandidateId(backendCandidateId);
+      console.log("[LUMA] Candidate saved");
       appendLog("Requesting client secret from backend...");
 
       const res = await fetch("/api/client-secret", {
@@ -393,7 +394,7 @@ export default function LumaSpeakingTestPage() {
 
       const json = await res.json();
       const clientSecret = json.client_secret as string | undefined;
-      console.log("Received client secret", Boolean(clientSecret));
+      console.log("[LUMA] Client secret received", clientSecret);
 
       if (!clientSecret) {
         appendLog("No client secret received.");
@@ -411,18 +412,19 @@ export default function LumaSpeakingTestPage() {
         if (micStreamRef.current) return micStreamRef.current;
 
         appendLog("Requesting microphone access...");
-        console.log("Calling getUserMedia for microphone");
+        console.log("[LUMA] Requesting microphone access...");
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
           });
           micStreamRef.current = stream;
-          console.log("getUserMedia success");
+          console.log("[LUMA] Microphone stream acquired", stream);
           appendLog("Microphone access granted.");
           return stream;
         } catch (err) {
-          console.error("getUserMedia error", err);
+          console.error("[LUMA] getUserMedia error", err);
           appendLog("Microphone permission denied or failed.");
+          setStatus("idle");
           throw err;
         }
       }
@@ -525,7 +527,7 @@ export default function LumaSpeakingTestPage() {
             } as const;
 
             const greetingText =
-              "Hi, I am LUMA, your English speaking assistant. Let's start when you are ready.";
+              "Hi, I am LUMA, your AI speaking examiner. Tell me about yourself when you are ready.";
 
             const greetingEvent = {
               type: "response.create",
@@ -712,8 +714,10 @@ export default function LumaSpeakingTestPage() {
       };
 
       ws.onopen = async () => {
-        console.log("Realtime WebSocket opened");
+        console.log("[LUMA] Realtime WebSocket opened");
         appendLog("Realtime WebSocket opened.");
+        setStatus("active");
+        startTimer();
         try {
           await createAndSendOffer();
         } catch (error: any) {
