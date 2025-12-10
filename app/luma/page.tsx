@@ -290,7 +290,19 @@ export default function LumaSpeakingTestPage() {
   }
 
   async function startTest() {
+    console.log("Start test clicked");
+
     try {
+      if (typeof window === "undefined") {
+        appendLog("Start test ignored on server.");
+        return;
+      }
+
+      if (!isIdle) {
+        appendLog("Test already running or connecting.");
+        return;
+      }
+
       if (!candidateFullName) {
         alert("Please enter candidate first and last name.");
         appendLog("Missing candidate name.");
@@ -381,6 +393,7 @@ export default function LumaSpeakingTestPage() {
 
       const json = await res.json();
       const clientSecret = json.client_secret as string | undefined;
+      console.log("Received client secret", Boolean(clientSecret));
 
       if (!clientSecret) {
         appendLog("No client secret received.");
@@ -388,24 +401,62 @@ export default function LumaSpeakingTestPage() {
         return;
       }
 
-      appendLog("Acquiring microphone...");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-
       const pc = new RTCPeerConnection();
       peerRef.current = pc;
 
-      stream.getAudioTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
+      let hasLoggedRemoteAudio = false;
+      let firstModelOutputLogged = false;
+
+      async function ensureMicStream() {
+        if (micStreamRef.current) return micStreamRef.current;
+
+        appendLog("Requesting microphone access...");
+        console.log("Calling getUserMedia for microphone");
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          micStreamRef.current = stream;
+          console.log("getUserMedia success");
+          appendLog("Microphone access granted.");
+          return stream;
+        } catch (err) {
+          console.error("getUserMedia error", err);
+          appendLog("Microphone permission denied or failed.");
+          throw err;
+        }
+      }
+
+      async function attachMicrophoneTracks() {
+        const stream = await ensureMicStream();
+        const senders = pc.getSenders();
+
+        stream.getAudioTracks().forEach((track) => {
+          const alreadyAdded = senders.some((sender) => sender.track === track);
+          if (!alreadyAdded) {
+            pc.addTrack(track, stream);
+          }
+        });
+
+        console.log("Microphone tracks attached to RTCPeerConnection");
+        appendLog("Microphone connected to LUMA session.");
+      }
 
       pc.ontrack = (event) => {
         if (!audioRef.current) return;
         audioRef.current.srcObject = event.streams[0];
+        audioRef.current.autoplay = true;
+        audioRef.current.setAttribute("playsinline", "true");
         const playPromise = audioRef.current.play();
         if (playPromise) {
           playPromise
-            .then(() => appendLog("Playing audio from LUMA."))
+            .then(() => {
+              appendLog("Playing audio from LUMA.");
+              if (!hasLoggedRemoteAudio) {
+                console.log("First remote audio track received from LUMA");
+                hasLoggedRemoteAudio = true;
+              }
+            })
             .catch((err) => {
               console.warn("Autoplay blocked or failed:", err);
             });
@@ -417,6 +468,7 @@ export default function LumaSpeakingTestPage() {
 
       dc.onopen = () => {
         appendLog("Data channel open. Configuring LUMA session...");
+        console.log("Data channel opened");
         setStatus("active");
         startTimer();
       };
@@ -429,6 +481,7 @@ export default function LumaSpeakingTestPage() {
             if (sessionInitializedRef.current) return;
             sessionInitializedRef.current = true;
             appendLog("Session created. Sending configuration and greeting...");
+            console.log("Realtime session.created received");
 
             const contextLines: string[] = [
               `The candidate's name is "${candidateFullName}".`,
@@ -487,6 +540,7 @@ export default function LumaSpeakingTestPage() {
 
             dc.send(JSON.stringify(sessionUpdate));
             dc.send(JSON.stringify(greetingEvent));
+            console.log("Sent session.update and initial greeting to LUMA");
             appendLog("Session configured. LUMA will greet the candidate.");
             return;
           }
@@ -515,6 +569,10 @@ export default function LumaSpeakingTestPage() {
 
           if (msg.type === "response.text.delta") {
             const purpose = responseMetadataRef.current[msg.response_id];
+            if (!firstModelOutputLogged) {
+              console.log("Received first model output from LUMA");
+              firstModelOutputLogged = true;
+            }
             if (purpose === "speaking_report") {
               reportBufferRef.current += msg.delta;
             } else if (msg.delta?.trim()) {
@@ -630,9 +688,6 @@ export default function LumaSpeakingTestPage() {
         }
       };
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
       const sendClientDescription = () => {
         if (
           ws.readyState === WebSocket.OPEN &&
@@ -649,8 +704,25 @@ export default function LumaSpeakingTestPage() {
         }
       };
 
-      ws.onopen = sendClientDescription;
-      sendClientDescription();
+      const createAndSendOffer = async () => {
+        await attachMicrophoneTracks();
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendClientDescription();
+      };
+
+      ws.onopen = async () => {
+        console.log("Realtime WebSocket opened");
+        appendLog("Realtime WebSocket opened.");
+        try {
+          await createAndSendOffer();
+        } catch (error: any) {
+          console.error("Failed to start signaling", error);
+          appendLog("Failed to start signaling: " + (error?.message || "unknown"));
+          setStatus("idle");
+          stopTimer();
+        }
+      };
 
       appendLog("Connecting to LUMA Realtime...");
     } catch (err: any) {
