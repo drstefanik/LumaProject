@@ -189,10 +189,7 @@ export async function POST(req: NextRequest) {
       });
     } catch (error) {
       console.error("Error saving LUMA report to Airtable", error);
-      return NextResponse.json(
-        { error: "Failed to save report to Airtable" },
-        { status: 500 }
-      );
+      airtableId = null;
     }
 
     console.log(
