@@ -12,53 +12,20 @@ const base = new Airtable({
 }).base(process.env.AIRTABLE_BASE_ID!);
 
 // 🔹 Tabella anagrafica candidati (LUMASpeakingCandidates)
-const SPEAKING_CANDIDATES_TABLE =
-  process.env.AIRTABLE_SPEAKING_CANDIDATES_TABLE || "LUMASpeakingCandidates";
+const CANDIDATE_TABLE =
+  process.env.AIRTABLE_CANDIDATE_TABLE || "LUMASpeakingCandidates";
 
-export const speakingCandidatesTable = () => base(SPEAKING_CANDIDATES_TABLE);
+export const speakingCandidatesTable = () => base(CANDIDATE_TABLE);
 
 // 🔹 Tabella report (Luma Reports)
 const LUMA_REPORTS_TABLE =
-  process.env.AIRTABLE_LUMA_REPORTS_TABLE || "Luma Reports";
+  process.env.LUMA_REPORTS_TABLE || "Luma Reports";
 
 export const lumaReportsTable = () => base(LUMA_REPORTS_TABLE);
 
-// (per compatibilità, se da qualche parte usi ancora reportsTable)
+// 🔹 Alias di compatibilità (se da qualche parte usi ancora reportsTable)
 export const reportsTable = () =>
-  base(process.env.AIRTABLE_REPORT_TABLE!);
-
-export const LUMA_REPORTS_TABLE =
-  process.env.AIRTABLE_LUMA_REPORTS_TABLE || "Luma Reports";
-
-export const lumaReportsTable = () => base(LUMA_REPORTS_TABLE);
-
-type LumaReportRecord = {
-  firstName: string;
-  lastName: string;
-  email: string;
-  dateOfBirth?: string;
-  nativeLanguage?: string;
-  country?: string;
-  testPurpose?: string;
-  consentPrivacy?: boolean;
-};
-
-export async function saveLumaCandidate(record: LumaCandidateRecord) {
-  const fields: Record<string, any> = {
-    // Questi nomi DEVONO combaciare coi campi della tabella LUMASpeakingCandidates.
-    // Adatta se hai nomi diversi, ma la logica è questa.
-    Candidate: `${record.firstName} ${record.lastName}`.trim(),
-    CandidateEmail: record.email,
-    DateOfBirth: record.dateOfBirth,
-    NativeLanguage: record.nativeLanguage,
-    Country: record.country,
-    TestPurpose: record.testPurpose,
-    PrivacyConsent: record.consentPrivacy,
-  };
-
-  const created = await speakingCandidatesTable().create([{ fields }]);
-  return created[0]?.getId?.() ?? null;
-}
+  base(process.env.AIRTABLE_REPORT_TABLE || LUMA_REPORTS_TABLE);
 
 // ======================
 //  REPORT SAVE
@@ -78,7 +45,7 @@ type LumaReportRecord = {
 
 export async function saveLumaReport(record: LumaReportRecord) {
   const fields: Record<string, any> = {
-    // Nomi esattamente come nello screenshot
+    // Nomi esattamente come nella tabella "Luma Reports"
     Candidate: record.candidateName,
     CandidateEmail: record.candidateEmail,
     CEFR_Level: record.cefrLevel,
@@ -88,7 +55,7 @@ export async function saveLumaReport(record: LumaReportRecord) {
     Recommendations: record.recommendations?.join("\n"),
     OverallComment: record.overallComment,
     RawEvaluationText: record.rawEvaluationText,
-    // ReportID e CreatedAt li gestisce Airtable (auto / formula), quindi NON li settiamo.
+    // ReportID e CreatedAt li gestisce Airtable
   };
 
   const created = await lumaReportsTable().create([{ fields }]);
