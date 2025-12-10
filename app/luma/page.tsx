@@ -568,11 +568,14 @@ export default function LumaSpeakingTestPage() {
             message.item?.response_id;
 
           const isReportResponse =
-            reportResponseIdRef.current &&
+            !!reportResponseIdRef.current &&
             relevantResponseId === reportResponseIdRef.current;
 
+          const isEvaluatingReport =
+            statusRef.current === "evaluating" && isReportResponse;
+
           if (
-            isReportResponse &&
+            isEvaluatingReport &&
             (message.type === "response.output_text.delta" ||
               message.type === "response.output_text.append" ||
               message.type === "response.content_part.added" ||
@@ -598,7 +601,7 @@ export default function LumaSpeakingTestPage() {
           }
 
           if (
-            isReportResponse &&
+            isEvaluatingReport &&
             (message.type === "response.completed" ||
               message.type === "response.output_item.done" ||
               message.type === "response.output_text.done" ||
@@ -716,7 +719,6 @@ export default function LumaSpeakingTestPage() {
         metadata: {
           purpose: "speaking_report",
         },
-        modalities: ["text"],
       },
     };
 
