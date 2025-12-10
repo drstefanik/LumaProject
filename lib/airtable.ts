@@ -25,13 +25,14 @@ export const lumaReportsTable = () => base(LUMA_REPORTS_TABLE);
 
 // (per compatibilità, se da qualche parte usi ancora reportsTable)
 export const reportsTable = () =>
-  base(process.env.AIRTABLE_REPORT_TABLE || LUMA_REPORTS_TABLE);
+  base(process.env.AIRTABLE_REPORT_TABLE!);
 
-// ======================
-//  CANDIDATE SAVE
-// ======================
+export const LUMA_REPORTS_TABLE =
+  process.env.AIRTABLE_LUMA_REPORTS_TABLE || "Luma Reports";
 
-type LumaCandidateRecord = {
+export const lumaReportsTable = () => base(LUMA_REPORTS_TABLE);
+
+type LumaReportRecord = {
   firstName: string;
   lastName: string;
   email: string;
