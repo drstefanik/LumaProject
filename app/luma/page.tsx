@@ -562,6 +562,7 @@ export default function LumaSpeakingTestPage() {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
+            channelCount: 1,
           },
         });
         micStreamRef.current = stream;
@@ -627,13 +628,15 @@ export default function LumaSpeakingTestPage() {
         }
 
         return [
-          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
-          "This is a A1–C2 speaking test. Take the initiative with questions, propose 2–3 standard topics (study/work, travel, future projects) without asking the candidate to choose, and keep follow-up questions short but targeted.",
-          "Do not summarise the conversation or give feedback about the candidate's performance during the test. The evaluation is only produced when explicitly requested by the system via a JSON report.",
-          "When the test is finished, I will ask you for a JSON evaluation. Do not read the final report aloud, only generate the JSON.",
-          "Maintain a professional examiner tone and avoid casual chatter.",
+          "You are LUMA, the Language Understanding Mastery Assistant of British Institutes.",
+          "You are acting as a formal English speaking examiner. Speak clearly in English, be friendly and professional, and keep your turns concise.",
+          "This is a A1–C2 speaking test. You must choose the topics and questions yourself. Never ask the candidate to design the test or choose the topics.",
+          "Use the test purpose and context to decide on appropriate topics (e.g. university admission, job application, Erasmus, visa).",
+          "Structure the interview like an official exam: short warm-up, some guided questions, then more open questions. Encourage the candidate to speak at length.",
+          "Do not summarise the conversation, do not give advice, and do not provide any spoken evaluation or score during the test.",
+          "When the system later asks you for a JSON evaluation, you must only return JSON and you must not speak to the candidate in that response.",
+          "Keep the conversation flowing naturally but focused on assessing speaking skills, not chit-chat.",
           ...contextLines,
-          "Keep the conversation flowing naturally and encourage the candidate to speak.",
         ].join("\n");
       })();
 
@@ -648,7 +651,7 @@ export default function LumaSpeakingTestPage() {
             type: "realtime",
             model: REALTIME_MODEL,
             instructions: sessionInstructions,
-            // VAD tuned to be less sensitive, to avoid truncating the examiner's questions.
+            // VAD meno sensibile per non troncare le domande dell'esaminatore
             turn_detection: {
               type: "server",
               threshold: 0.75,
@@ -662,7 +665,7 @@ export default function LumaSpeakingTestPage() {
           response: {
             metadata: { purpose: "initial_greeting" },
             instructions:
-              "Hi, I am LUMA, your AI speaking examiner. Tell me about yourself when you are ready.",
+              "Introduce yourself briefly as LUMA, the AI speaking examiner, and start the exam with a simple warm-up question. Do not talk about evaluation or scores.",
           },
         } as const;
 
@@ -678,17 +681,19 @@ export default function LumaSpeakingTestPage() {
             console.log("[LUMA evaluating] event:", message);
           }
 
-          // error esplicito dal realtime
+          // error dal realtime
           if (message.type === "error") {
             console.error("[LUMA realtime error]", message.error || message);
             appendLog(
               "Realtime error: " +
-                (message.error?.message || JSON.stringify(message.error || message))
+                (message.error?.message ||
+                  JSON.stringify(message.error || message))
             );
             setStatus("active");
             return;
           }
 
+          // durante la valutazione ignoriamo qualsiasi audio
           if (
             statusRef.current === "evaluating" &&
             message.type?.startsWith("output_audio")
@@ -711,7 +716,7 @@ export default function LumaSpeakingTestPage() {
             return;
           }
 
-          // Eventi audio che non ci interessano
+          // Eventi audio in ingresso che non ci servono nei log
           if (
             message.type === "input_audio_buffer.append" ||
             message.type === "input_audio_buffer.speech_started" ||
@@ -774,6 +779,7 @@ export default function LumaSpeakingTestPage() {
           const isEvaluatingReport =
             statusRef.current === "evaluating" && isReportResponse;
 
+          // Accumulo testo del report finale
           if (
             isEvaluatingReport &&
             (message.type === "response.output_text.delta" ||
@@ -921,9 +927,10 @@ export default function LumaSpeakingTestPage() {
       "You are an English speaking examiner. " +
       "The user has just completed a speaking test. " +
       "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
-      "Do not guess topics that were not clearly present. " +
+      "Do not invent topics or details that were not clearly present. " +
       "Do not mention visa, immigration or specific purposes unless they were explicitly stated by the candidate. " +
-      "Return ONLY valid JSON, with no extra text, using this exact schema: " +
+      "You MUST NOT speak, play audio, or address the candidate in this response. " +
+      "Return ONLY valid JSON as plain text, with no introduction or explanation, using this exact schema: " +
       '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
 
     const event = {
@@ -1008,10 +1015,19 @@ export default function LumaSpeakingTestPage() {
       return;
     }
 
+    // Cerchiamo di isolare SOLO il blocco JSON
+    let jsonCandidate = trimmed;
+    const firstBrace = trimmed.indexOf("{");
+    const lastBrace = trimmed.lastIndexOf("}");
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      jsonCandidate = trimmed.slice(firstBrace, lastBrace + 1);
+    }
+
     let parsed: ReportState["parsed"] | undefined;
 
     try {
-      parsed = JSON.parse(trimmed);
+      parsed = JSON.parse(jsonCandidate);
     } catch (error) {
       console.warn("[LUMA] Failed to parse evaluation JSON", error);
       appendLog("Invalid evaluation JSON received. Sending raw text only.");
@@ -1020,7 +1036,7 @@ export default function LumaSpeakingTestPage() {
     console.log("[LUMA] Parsed evaluation object:", parsed);
 
     const finalParsedReport: ReportState = {
-      rawText: trimmed,
+      rawText: jsonCandidate,
       parsed: parsed || undefined,
     };
     setReport(finalParsedReport);
@@ -1274,7 +1290,10 @@ export default function LumaSpeakingTestPage() {
                       {minutes}:{seconds}
                     </span>
                     <p className="text-slate-300">
-                      Keep this tab active. LUMA speaks only in English.
+                      Keep this tab active. LUMA speaks only in English. Ask the
+                      candidate to say “Hello” when ready, and click{" "}
+                      <span className="font-semibold">Stop</span> when you
+                      decide the test is finished.
                     </p>
                   </div>
                   <audio ref={audioRef} className="hidden" />
@@ -1314,8 +1333,8 @@ export default function LumaSpeakingTestPage() {
                 <p className="text-[12px] text-slate-300">
                   After you press{" "}
                   <span className="font-semibold text-white">Stop</span>, LUMA
-                  will generate a structured written evaluation of the
-                  candidate&apos;s speaking performance.
+                  will silently generate a structured written evaluation of the
+                  candidate&apos;s speaking performance (no spoken feedback).
                 </p>
               )}
 
