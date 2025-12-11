@@ -628,6 +628,10 @@ export default function LumaSpeakingTestPage() {
 
         return [
           "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, and keep answers concise while evaluating the candidate's spoken English.",
+          "This is a B1–B2 speaking test. Take the initiative with questions, propose 2–3 standard topics (study/work, travel, future projects) without asking the candidate to choose, and keep follow-up questions short but targeted.",
+          "Do not summarise the conversation or give feedback about the candidate's performance during the test. The evaluation is only produced when explicitly requested by the system via a JSON report.",
+          "When the test is finished, I will ask you for a JSON evaluation. Do not read the final report aloud, only generate the JSON.",
+          "Maintain a professional examiner tone and avoid casual chatter.",
           ...contextLines,
           "Keep the conversation flowing naturally and encourage the candidate to speak.",
         ].join("\n");
@@ -644,10 +648,11 @@ export default function LumaSpeakingTestPage() {
             type: "realtime",
             model: REALTIME_MODEL,
             instructions: sessionInstructions,
+            // VAD tuned to be less sensitive, to avoid truncating the examiner's questions.
             turn_detection: {
               type: "server",
-              threshold: 0.7,
-              silence_ms: 900,
+              threshold: 0.75,
+              silence_ms: 1200,
             },
           },
         } as const;
@@ -658,7 +663,6 @@ export default function LumaSpeakingTestPage() {
             metadata: { purpose: "initial_greeting" },
             instructions:
               "Hi, I am LUMA, your AI speaking examiner. Tell me about yourself when you are ready.",
-            modalities: ["text", "audio"],
           },
         } as const;
 
@@ -682,6 +686,13 @@ export default function LumaSpeakingTestPage() {
                 (message.error?.message || JSON.stringify(message.error || message))
             );
             setStatus("active");
+            return;
+          }
+
+          if (
+            statusRef.current === "evaluating" &&
+            message.type?.startsWith("output_audio")
+          ) {
             return;
           }
 
@@ -890,10 +901,15 @@ export default function LumaSpeakingTestPage() {
   }
 
   function requestFinalEvaluation() {
+    appendLog("requestFinalEvaluation called.");
     const dc = dataChannelRef.current;
     if (!dc || dc.readyState !== "open") {
       appendLog("Data channel not open. Cannot request evaluation.");
       return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.muted = true;
     }
 
     setStatus("evaluating");
@@ -917,14 +933,11 @@ export default function LumaSpeakingTestPage() {
         metadata: {
           purpose: "speaking_report",
         },
-        modalities: ["text"],
-        // niente audio richiesto esplicitamente, ma anche se parla
-        // noi leggiamo il testo/transcript
       },
     };
 
     dc.send(JSON.stringify(event));
-    appendLog("Evaluation request event sent on data channel.");
+    appendLog("Evaluation request event sent.");
   }
 
   async function submitReport(finalReport: ReportState) {
