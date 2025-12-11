@@ -39,6 +39,7 @@ function validatePayload(body: any) {
   if (!candidate.firstName || !candidate.lastName || !candidate.email) return false;
 
   if (!evaluation || typeof evaluation !== "object") return false;
+
   const hasRaw =
     typeof evaluation.rawJson === "string" &&
     evaluation.rawJson.trim().length > 0;
@@ -63,10 +64,13 @@ function stringifyEvaluation(evaluation: EvaluationPayload) {
   return "{}";
 }
 
-async function generateReport(candidate: CandidatePayload, evaluation: EvaluationPayload) {
+async function generateReport(
+  candidate: CandidatePayload,
+  evaluation: EvaluationPayload
+) {
   const systemPrompt =
-    "You are an experienced English speaking examiner. Write concise, well-structured reports for speaking tests." +
-    " Keep the tone professional but accessible.";
+    "You are an experienced English speaking examiner. Write concise, well-structured reports for speaking tests. " +
+    "Keep the tone professional but accessible.";
 
   const userPrompt = [
     "Please write a speaking test report based on the following evaluation data.",
@@ -123,7 +127,10 @@ async function saveReportLocally(
   const dir = path.join(process.cwd(), "report");
   await fs.mkdir(dir, { recursive: true });
 
-  const baseName = (candidate.email || "report").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const baseName = (candidate.email || "report").replace(
+    /[^a-zA-Z0-9._-]/g,
+    "_"
+  );
   let filePath = path.join(dir, `${baseName}.json`);
   let counter = 2;
 
@@ -154,6 +161,7 @@ export async function POST(req: NextRequest) {
     console.log("[/api/report] Incoming payload", body);
 
     if (!validatePayload(body)) {
+      console.warn("[/api/report] Invalid payload");
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
@@ -165,7 +173,7 @@ export async function POST(req: NextRequest) {
     try {
       reportText = await generateReport(candidate, evaluation);
     } catch (error) {
-      console.error("Error generating report", error);
+      console.error("[/api/report] Error generating report", error);
       return NextResponse.json(
         { error: "Failed to generate report" },
         { status: 500 }
@@ -190,7 +198,7 @@ export async function POST(req: NextRequest) {
       });
     } catch (error) {
       console.error(
-        "Error saving LUMA report to Airtable",
+        "[/api/report] Error saving LUMA report to Airtable",
         JSON.stringify(error, null, 2)
       );
       airtableId = null;
