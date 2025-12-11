@@ -657,168 +657,95 @@ export default function LumaSpeakingTestPage() {
         dc.send(JSON.stringify(greetingEvent));
       };
 
-      dc.onmessage = async (event) => {
-        try {
-          const message = JSON.parse(event.data as string);
+dc.onmessage = async (event) => {
+  try {
+    const message = JSON.parse(event.data as string);
 
-          if (statusRef.current === "evaluating") {
-            console.log("[LUMA evaluating] event:", message);
-          }
+    if (statusRef.current === "evaluating") {
+      console.log("[LUMA evaluating] event:", message);
+    }
 
-          if (
-            message.type === "input_audio_buffer.append" ||
-            message.type === "input_audio_buffer.speech_started" ||
-            message.type === "input_audio_buffer.speech_stopped" ||
-            message.type === "output_audio_buffer.delta"
-          ) {
-            return;
-          }
+    // Ignora eventi di buffer audio che non ci interessano
+    if (
+      message.type === "input_audio_buffer.append" ||
+      message.type === "input_audio_buffer.speech_started" ||
+      message.type === "input_audio_buffer.speech_stopped" ||
+      message.type === "output_audio_buffer.delta"
+    ) {
+      return;
+    }
 
-          if (message.type === "response.created" && message.response?.id) {
-            responseMetadataRef.current[message.response.id] =
-              message.response.metadata?.purpose;
-            if (message.response.metadata?.purpose === "speaking_report") {
-              reportResponseIdRef.current = message.response.id;
-              evaluationBufferRef.current = "";
-              appendLog(
-                "Started receiving speaking_report response: " +
-                  message.response.id
-              );
-            } else {
-              appendLog("Response created: " + message.response.id);
-            }
-            return;
-          }
+    // Tracciamo il "purpose" di ogni response
+    if (message.type === "response.created" && message.response?.id) {
+      const purpose = message.response.metadata?.purpose as
+        | string
+        | undefined;
+      responseMetadataRef.current[message.response.id] = purpose;
 
-          if (message.type === "response.output_item.added") {
-            const responseId = message.item?.response_id ?? message.response_id;
-            const itemPurpose =
-              message.item?.metadata?.purpose ??
-              message.response?.metadata?.purpose;
+      if (purpose === "speaking_report") {
+        evaluationBufferRef.current = "";
+        appendLog(
+          "Started receiving speaking_report response: " +
+            message.response.id
+        );
+      } else {
+        appendLog("Response created: " + message.response.id);
+      }
+      return;
+    }
 
-            if (itemPurpose === "speaking_report" && responseId) {
-              reportResponseIdRef.current = responseId;
-              evaluationBufferRef.current = "";
-              appendLog(
-                "Started receiving speaking_report response: " + responseId
-              );
-              return;
-            }
+    // Accumulo del testo del report (delta)
+    if (message.type === "response.text.delta") {
+      const responseId = message.response_id as string | undefined;
+      const purpose = responseId
+        ? responseMetadataRef.current[responseId]
+        : undefined;
 
-            appendLog("Output item added to response.");
-            return;
-          }
+      if (purpose === "speaking_report" && typeof message.delta === "string") {
+        evaluationBufferRef.current += message.delta;
+        appendLog(
+          "Accumulated report length: " +
+            evaluationBufferRef.current.length
+        );
+      } else if (message.delta?.trim()) {
+        appendLog(`LUMA: ${message.delta}`);
+      }
+      return;
+    }
 
-          const relevantResponseId =
-            message.response_id ??
-            message.response?.id ??
-            message.item?.response_id;
+    // Fine del testo del report
+    if (message.type === "response.text.done") {
+      const responseId = message.response_id as string | undefined;
+      const purpose = responseId
+        ? responseMetadataRef.current[responseId]
+        : undefined;
 
-          const isReportResponse =
-            !!reportResponseIdRef.current &&
-            relevantResponseId === reportResponseIdRef.current;
+      if (purpose === "speaking_report") {
+        evaluationBufferRef.current += message.text ?? "";
+        const fullText = evaluationBufferRef.current.trim();
+        evaluationBufferRef.current = "";
 
-          const isEvaluatingReport =
-            statusRef.current === "evaluating" && isReportResponse;
+        appendLog(
+          "Speaking report completed. Calling processFinalReport..."
+        );
+        await processFinalReport(fullText);
+      } else if (message.text?.trim()) {
+        appendLog(`LUMA: ${message.text}`);
+      }
+      return;
+    }
 
-          const evaluationOutputType =
-            message.item?.output_type === "evaluation" ||
-            message.response?.output_type === "evaluation" ||
-            message.output_type === "evaluation";
+    if (message.type === "response.done") {
+      appendLog("Response finished.");
+      return;
+    }
 
-          if (
-            isEvaluatingReport &&
-            (message.type === "response.output_text.delta" ||
-              message.type === "response.output_text.append" ||
-              message.type === "response.output_audio_transcript.delta" ||
-              message.type === "response.output_audio_transcript.append" ||
-              message.type === "response.content_part.added" ||
-              message.type === "response.text.delta")
-          ) {
-            const chunk =
-              typeof message.delta === "string"
-                ? message.delta
-                : typeof message.text === "string"
-                ? message.text
-                : Array.isArray(message.content) &&
-                  typeof message.content?.[0]?.text === "string"
-                ? message.content[0].text
-                : "";
+    appendLog(`Event: ${message.type}`);
+  } catch (err: any) {
+    console.error("Error parsing data channel message", err);
+  }
+};
 
-            if (chunk) {
-              evaluationBufferRef.current += chunk;
-              appendLog(
-                "Accumulated report length: " +
-                  evaluationBufferRef.current.length
-              );
-            }
-            return;
-          }
-
-          if (
-            isEvaluatingReport &&
-            (message.type === "response.completed" ||
-              (message.type === "response.output_item.done" &&
-                evaluationOutputType) ||
-              message.type === "response.output_text.done" ||
-              message.type === "response.text.done")
-          ) {
-            appendLog(
-              "Speaking report completed. Calling processFinalReport..."
-            );
-            if (typeof message.text === "string" && message.text) {
-              evaluationBufferRef.current += message.text;
-            }
-            await processFinalReport(evaluationBufferRef.current);
-            reportResponseIdRef.current = null;
-            evaluationBufferRef.current = "";
-            return;
-          }
-
-          if (message.type === "response.text.delta") {
-            const purpose = responseMetadataRef.current[message.response_id];
-            if (!firstModelOutputLogged) {
-              console.log("Received first model output from LUMA");
-              firstModelOutputLogged = true;
-            }
-            if (purpose === "speaking_report") {
-              evaluationBufferRef.current += message.delta;
-            } else if (message.delta?.trim()) {
-              appendLog(`LUMA: ${message.delta}`);
-            }
-            return;
-          }
-
-          if (message.type === "response.text.done") {
-            const purpose = responseMetadataRef.current[message.response_id];
-            if (purpose === "speaking_report") {
-              evaluationBufferRef.current += message.text ?? "";
-              const fullText = evaluationBufferRef.current.trim();
-              evaluationBufferRef.current = "";
-              if (!fullText) {
-                appendLog("No written evaluation received from LUMA.");
-                setStatus("active");
-                return;
-              }
-
-              appendLog("Final written evaluation received from LUMA.");
-              await processFinalReport(fullText);
-            } else if (message.text?.trim()) {
-              appendLog(`LUMA: ${message.text}`);
-            }
-            return;
-          }
-
-          if (message.type === "response.done") {
-            appendLog("Response finished.");
-            return;
-          }
-
-          appendLog(`Event: ${message.type}`);
-        } catch (err: any) {
-          console.error("Error parsing data channel message", err);
-        }
-      };
 
       const offer = await pc.createOffer({ offerToReceiveAudio: true });
       await pc.setLocalDescription(offer);
@@ -855,16 +782,42 @@ export default function LumaSpeakingTestPage() {
     }
   }
 
-  function requestFinalEvaluation() {
-    const dc = dataChannelRef.current;
-    if (!dc || dc.readyState !== "open") {
-      appendLog("Data channel not open. Cannot request evaluation.");
-      return;
-    }
+function requestFinalEvaluation() {
+  const dc = dataChannelRef.current;
+  if (!dc || dc.readyState !== "open") {
+    appendLog("Data channel not open. Cannot request evaluation.");
+    return;
+  }
 
-    setStatus("evaluating");
-    evaluationBufferRef.current = "";
-    appendLog("Requesting final written evaluation from LUMA...");
+  setStatus("evaluating");
+  evaluationBufferRef.current = "";
+  appendLog("Requesting final written evaluation from LUMA...");
+
+  const instructions =
+    "You are an English speaking examiner. " +
+    "The user has just completed a speaking test. " +
+    "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
+    "Do not guess topics that were not clearly present. " +
+    "Do not mention visa, immigration or specific purposes unless they were explicitly stated by the candidate. " +
+    "Return ONLY valid JSON, with no extra text, using this exact schema: " +
+    '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
+
+  const event = {
+    type: "response.create",
+    response: {
+      instructions,
+      metadata: {
+        purpose: "speaking_report",
+      },
+      // QUI lo forziamo a generare SOLO TESTO
+      modalities: ["text"],
+    },
+  };
+
+  dc.send(JSON.stringify(event));
+  appendLog("Evaluation request event sent on data channel.");
+}
+
 
     const instructions =
       "You are an English speaking examiner. " +
