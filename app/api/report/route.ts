@@ -169,28 +169,31 @@ export async function POST(req: NextRequest) {
     const candidate = body.candidate as CandidatePayload;
     const evaluation = body.evaluation as EvaluationPayload;
 
-    // Se il client non è riuscito a fare il parse, ci riproviamo qui
-    if (!evaluation.parsed) {
-      const raw = evaluation.rawJson;
-      if (typeof raw === "string" && raw.trim()) {
-        try {
-          evaluation.parsed = JSON.parse(raw);
-          console.log("[/api/report] Parsed evaluation.rawJson on server");
-        } catch (err) {
-          console.warn(
-            "[/api/report] Could not parse evaluation.rawJson on server",
-            err
-          );
-        }
+    // normalizziamo: se il frontend non ha parsed, ci proviamo qui dal rawJson
+    let normalizedParsed = evaluation.parsed;
+    if (!normalizedParsed && typeof evaluation.rawJson === "string") {
+      try {
+        normalizedParsed = JSON.parse(evaluation.rawJson);
+        console.log(
+          "[/api/report] Parsed evaluation.rawJson on server side successfully"
+        );
+      } catch (e) {
+        console.warn(
+          "[/api/report] Failed to parse evaluation.rawJson on server",
+          e
+        );
       }
     }
 
-    const parsed = evaluation.parsed;
+    const normalizedEvaluation: EvaluationPayload = {
+      rawJson: evaluation.rawJson,
+      parsed: normalizedParsed,
+    };
 
     let reportText: string;
 
     try {
-      reportText = await generateReport(candidate, evaluation);
+      reportText = await generateReport(candidate, normalizedEvaluation);
     } catch (error) {
       console.error("[/api/report] Error generating report", error);
       return NextResponse.json(
@@ -207,13 +210,13 @@ export async function POST(req: NextRequest) {
         firstName: candidate.firstName,
         lastName: candidate.lastName,
         email: candidate.email!,
-        cefrLevel: parsed?.cefr_level,
-        accent: parsed?.accent,
-        strengths: parsed?.strengths,
-        weaknesses: parsed?.weaknesses,
-        recommendations: parsed?.recommendations,
-        overallComment: parsed?.overall_comment,
-        rawJson: stringifyEvaluation(evaluation),
+        cefrLevel: normalizedEvaluation.parsed?.cefr_level,
+        accent: normalizedEvaluation.parsed?.accent,
+        strengths: normalizedEvaluation.parsed?.strengths,
+        weaknesses: normalizedEvaluation.parsed?.weaknesses,
+        recommendations: normalizedEvaluation.parsed?.recommendations,
+        overallComment: normalizedEvaluation.parsed?.overall_comment,
+        rawJson: stringifyEvaluation(normalizedEvaluation),
       };
 
       console.log("[Airtable] LUMA report fields", airtablePayload);
@@ -228,7 +231,11 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      localReportPath = await saveReportLocally(candidate, evaluation, reportText);
+      localReportPath = await saveReportLocally(
+        candidate,
+        normalizedEvaluation,
+        reportText
+      );
     } catch (error) {
       // in produzione (Vercel) può fallire, non è grave
       console.warn("[/api/report] Unable to save local report file", error);
@@ -246,8 +253,8 @@ export async function POST(req: NextRequest) {
       localReportPath,
       reportText,
       meta: {
-        cefrLevel: parsed?.cefr_level ?? null,
-        globalScore: parsed?.global_score ?? null,
+        cefrLevel: normalizedEvaluation.parsed?.cefr_level ?? null,
+        globalScore: normalizedEvaluation.parsed?.global_score ?? null,
       },
     });
   } catch (err) {
