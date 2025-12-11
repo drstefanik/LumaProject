@@ -169,6 +169,24 @@ export async function POST(req: NextRequest) {
     const candidate = body.candidate as CandidatePayload;
     const evaluation = body.evaluation as EvaluationPayload;
 
+    // Se il client non è riuscito a fare il parse, ci riproviamo qui
+    if (!evaluation.parsed) {
+      const raw = evaluation.rawJson;
+      if (typeof raw === "string" && raw.trim()) {
+        try {
+          evaluation.parsed = JSON.parse(raw);
+          console.log("[/api/report] Parsed evaluation.rawJson on server");
+        } catch (err) {
+          console.warn(
+            "[/api/report] Could not parse evaluation.rawJson on server",
+            err
+          );
+        }
+      }
+    }
+
+    const parsed = evaluation.parsed;
+
     let reportText: string;
 
     try {
@@ -189,12 +207,12 @@ export async function POST(req: NextRequest) {
         firstName: candidate.firstName,
         lastName: candidate.lastName,
         email: candidate.email!,
-        cefrLevel: evaluation.parsed?.cefr_level,
-        accent: evaluation.parsed?.accent,
-        strengths: evaluation.parsed?.strengths,
-        weaknesses: evaluation.parsed?.weaknesses,
-        recommendations: evaluation.parsed?.recommendations,
-        overallComment: evaluation.parsed?.overall_comment,
+        cefrLevel: parsed?.cefr_level,
+        accent: parsed?.accent,
+        strengths: parsed?.strengths,
+        weaknesses: parsed?.weaknesses,
+        recommendations: parsed?.recommendations,
+        overallComment: parsed?.overall_comment,
         rawJson: stringifyEvaluation(evaluation),
       };
 
@@ -228,8 +246,8 @@ export async function POST(req: NextRequest) {
       localReportPath,
       reportText,
       meta: {
-        cefrLevel: evaluation.parsed?.cefr_level ?? null,
-        globalScore: evaluation.parsed?.global_score ?? null,
+        cefrLevel: parsed?.cefr_level ?? null,
+        globalScore: parsed?.global_score ?? null,
       },
     });
   } catch (err) {
