@@ -27,189 +27,189 @@ type ReportState = {
 
 const NATIVE_LANGUAGES = [
   "Afar",
-"Abkhazian",
-"Avestan",
-"Afrikaans",
-"Akan",
-"Amharic",
-"Aragonese",
-"Arabic",
-"Assamese",
-"Avaric",
-"Aymara",
-"Azerbaijani",
-"Bashkir",
-"Belarusian",
-"Bulgarian",
-"Bihari languages",
-"Bislama",
-"Bambara",
-"Bengali",
-"Tibetan",
-"Breton",
-"Bosnian",
-"Catalan",
-"Chechen",
-"Chamorro",
-"Corsican",
-"Cree",
-"Czech",
-"Church Slavic",
-"Chuvash",
-"Welsh",
-"Danish",
-"German",
-"Divehi (Dhivehi)",
-"Dzongkha",
-"Ewe",
-"Greek (Modern)",
-"English",
-"Esperanto",
-"Spanish",
-"Estonian",
-"Basque",
-"Persian (Farsi)",
-"Fulah",
-"Finnish",
-"Fijian",
-"Faroese",
-"French",
-"Western Frisian",
-"Irish",
-"Scottish Gaelic",
-"Galician",
-"Guarani",
-"Gujarati",
-"Manx",
-"Hausa",
-"Hebrew (Modern)",
-"Hindi",
-"Hiri Motu",
-"Croatian",
-"Haitian Creole",
-"Hungarian",
-"Armenian",
-"Herero",
-"Interlingua",
-"Indonesian",
-"Interlingue",
-"Igbo",
-"Sichuan Yi",
-"Inupiaq",
-"Ido",
-"Icelandic",
-"Italian",
-"Inuktitut",
-"Japanese",
-"Javanese",
-"Georgian",
-"Kongo",
-"Kikuyu",
-"Kuanyama",
-"Kazakh",
-"Kalaallisut",
-"Khmer",
-"Kannada",
-"Korean",
-"Kanuri",
-"Kashmiri",
-"Kurdish",
-"Komi",
-"Cornish",
-"Kirghiz (Kyrgyz)",
-"Latin",
-"Luxembourgish",
-"Ganda",
-"Limburgish",
-"Lingala",
-"Lao",
-"Lithuanian",
-"Luba-Katanga",
-"Latvian",
-"Malagasy",
-"Marshallese",
-"Maori",
-"Macedonian",
-"Malayalam",
-"Mongolian",
-"Marathi",
-"Malay",
-"Maltese",
-"Burmese",
-"Nauru",
-"Norwegian Bokmål",
-"North Ndebele",
-"Nepali",
-"Ndonga",
-"Dutch",
-"Norwegian Nynorsk",
-"Norwegian (Generic)",
-"South Ndebele",
-"Navajo",
-"Chichewa (Nyanja)",
-"Occitan",
-"Ojibwa",
-"Oromo",
-"Oriya",
-"Ossetian",
-"Panjabi (Punjabi)",
-"Pali",
-"Polish",
-"Pashto",
-"Portuguese",
-"Quechua",
-"Romansh",
-"Rundi",
-"Romanian",
-"Russian",
-"Kinyarwanda",
-"Sanskrit",
-"Sardinian",
-"Sindhi",
-"Northern Sami",
-"Sango",
-"Sinhalese",
-"Slovak",
-"Slovenian",
-"Samoan",
-"Shona",
-"Somali",
-"Albanian",
-"Serbian",
-"Swati",
-"Sotho (Southern)",
-"Sundanese",
-"Swedish",
-"Swahili",
-"Tamil",
-"Telugu",
-"Tajik",
-"Thai",
-"Tigrinya",
-"Turkmen",
-"Tagalog (Filipino)",
-"Tswana",
-"Tongan",
-"Turkish",
-"Tsonga",
-"Tatar",
-"Twi",
-"Tahitian",
-"Uighur",
-"Ukrainian",
-"Urdu",
-"Uzbek",
-"Venda",
-"Vietnamese",
-"Volapük",
-"Walloon",
-"Wolof",
-"Xhosa",
-"Yiddish",
-"Yoruba",
-"Zhuang",
-"Chinese (Mandarin)",
-"Zulu",
+  "Abkhazian",
+  "Avestan",
+  "Afrikaans",
+  "Akan",
+  "Amharic",
+  "Aragonese",
+  "Arabic",
+  "Assamese",
+  "Avaric",
+  "Aymara",
+  "Azerbaijani",
+  "Bashkir",
+  "Belarusian",
+  "Bulgarian",
+  "Bihari languages",
+  "Bislama",
+  "Bambara",
+  "Bengali",
+  "Tibetan",
+  "Breton",
+  "Bosnian",
+  "Catalan",
+  "Chechen",
+  "Chamorro",
+  "Corsican",
+  "Cree",
+  "Czech",
+  "Church Slavic",
+  "Chuvash",
+  "Welsh",
+  "Danish",
+  "German",
+  "Divehi (Dhivehi)",
+  "Dzongkha",
+  "Ewe",
+  "Greek (Modern)",
+  "English",
+  "Esperanto",
+  "Spanish",
+  "Estonian",
+  "Basque",
+  "Persian (Farsi)",
+  "Fulah",
+  "Finnish",
+  "Fijian",
+  "Faroese",
+  "French",
+  "Western Frisian",
+  "Irish",
+  "Scottish Gaelic",
+  "Galician",
+  "Guarani",
+  "Gujarati",
+  "Manx",
+  "Hausa",
+  "Hebrew (Modern)",
+  "Hindi",
+  "Hiri Motu",
+  "Croatian",
+  "Haitian Creole",
+  "Hungarian",
+  "Armenian",
+  "Herero",
+  "Interlingua",
+  "Indonesian",
+  "Interlingue",
+  "Igbo",
+  "Sichuan Yi",
+  "Inupiaq",
+  "Ido",
+  "Icelandic",
+  "Italian",
+  "Inuktitut",
+  "Japanese",
+  "Javanese",
+  "Georgian",
+  "Kongo",
+  "Kikuyu",
+  "Kuanyama",
+  "Kazakh",
+  "Kalaallisut",
+  "Khmer",
+  "Kannada",
+  "Korean",
+  "Kanuri",
+  "Kashmiri",
+  "Kurdish",
+  "Komi",
+  "Cornish",
+  "Kirghiz (Kyrgyz)",
+  "Latin",
+  "Luxembourgish",
+  "Ganda",
+  "Limburgish",
+  "Lingala",
+  "Lao",
+  "Lithuanian",
+  "Luba-Katanga",
+  "Latvian",
+  "Malagasy",
+  "Marshallese",
+  "Maori",
+  "Macedonian",
+  "Malayalam",
+  "Mongolian",
+  "Marathi",
+  "Malay",
+  "Maltese",
+  "Burmese",
+  "Nauru",
+  "Norwegian Bokmål",
+  "North Ndebele",
+  "Nepali",
+  "Ndonga",
+  "Dutch",
+  "Norwegian Nynorsk",
+  "Norwegian (Generic)",
+  "South Ndebele",
+  "Navajo",
+  "Chichewa (Nyanja)",
+  "Occitan",
+  "Ojibwa",
+  "Oromo",
+  "Oriya",
+  "Ossetian",
+  "Panjabi (Punjabi)",
+  "Pali",
+  "Polish",
+  "Pashto",
+  "Portuguese",
+  "Quechua",
+  "Romansh",
+  "Rundi",
+  "Romanian",
+  "Russian",
+  "Kinyarwanda",
+  "Sanskrit",
+  "Sardinian",
+  "Sindhi",
+  "Northern Sami",
+  "Sango",
+  "Sinhalese",
+  "Slovak",
+  "Slovenian",
+  "Samoan",
+  "Shona",
+  "Somali",
+  "Albanian",
+  "Serbian",
+  "Swati",
+  "Sotho (Southern)",
+  "Sundanese",
+  "Swedish",
+  "Swahili",
+  "Tamil",
+  "Telugu",
+  "Tajik",
+  "Thai",
+  "Tigrinya",
+  "Turkmen",
+  "Tagalog (Filipino)",
+  "Tswana",
+  "Tongan",
+  "Turkish",
+  "Tsonga",
+  "Tatar",
+  "Twi",
+  "Tahitian",
+  "Uighur",
+  "Ukrainian",
+  "Urdu",
+  "Uzbek",
+  "Venda",
+  "Vietnamese",
+  "Volapük",
+  "Walloon",
+  "Wolof",
+  "Xhosa",
+  "Yiddish",
+  "Yoruba",
+  "Zhuang",
+  "Chinese (Mandarin)",
+  "Zulu",
 ];
 
 const TEST_PURPOSES = [
@@ -300,9 +300,7 @@ function SearchableSelect({
       e.preventDefault();
       setIsOpen(true);
       setHighlightedIndex((prev) =>
-        filteredOptions.length === 0
-          ? 0
-          : (prev + 1) % filteredOptions.length
+        filteredOptions.length === 0 ? 0 : (prev + 1) % filteredOptions.length
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -389,9 +387,6 @@ export default function LumaSpeakingTestPage() {
   const responseMetadataRef = useRef<Record<string, string | undefined>>({});
 
   const statusRef = useRef<Status>("idle");
-
-  const reportResponseIdRef = useRef<string | null>(null);
-
   const evaluationBufferRef = useRef<string>("");
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
@@ -456,6 +451,8 @@ export default function LumaSpeakingTestPage() {
         appendLog("Start test ignored on server.");
         return;
       }
+
+      const isIdle = statusRef.current === "idle";
 
       if (!isIdle) {
         appendLog("Test already running or connecting.");
@@ -524,9 +521,8 @@ export default function LumaSpeakingTestPage() {
       }
 
       const candidateJson = await candidateRes.json();
-      const backendCandidateId = (candidateJson.candidateId || candidateJson.recordId) as
-        | string
-        | undefined;
+      const backendCandidateId = (candidateJson.candidateId ||
+        candidateJson.recordId) as string | undefined;
 
       if (!backendCandidateId) {
         appendLog("Candidate registration failed: missing candidateId.");
@@ -569,7 +565,9 @@ export default function LumaSpeakingTestPage() {
       } catch (err) {
         appendLog("Microphone permission denied or failed.");
         setStatus("idle");
-        alert("Microphone access denied. Please enable microphone access and try again.");
+        alert(
+          "Microphone access denied. Please enable microphone access and try again."
+        );
         return;
       }
 
@@ -579,7 +577,6 @@ export default function LumaSpeakingTestPage() {
       stream.getAudioTracks().forEach((track) => pc.addTrack(track, stream));
 
       let hasLoggedRemoteAudio = false;
-      let firstModelOutputLogged = false;
 
       pc.ontrack = (event) => {
         if (!audioRef.current) return;
@@ -606,12 +603,12 @@ export default function LumaSpeakingTestPage() {
       dataChannelRef.current = dc;
 
       const sessionInstructions = (() => {
-        const contextLines: string[] = [
-          `The candidate's name is "${candidateFullName}".`,
-        ];
+        const contextLines: string[] = [`The candidate's name is "${candidateFullName}".`];
 
         if (nativeLanguage) {
-          contextLines.push(`The candidate's native language is ${nativeLanguage}.`);
+          contextLines.push(
+            `The candidate's native language is ${nativeLanguage}.`
+          );
         }
 
         if (country) {
@@ -657,95 +654,111 @@ export default function LumaSpeakingTestPage() {
         dc.send(JSON.stringify(greetingEvent));
       };
 
-dc.onmessage = async (event) => {
-  try {
-    const message = JSON.parse(event.data as string);
+      dc.onmessage = async (event) => {
+        try {
+          const message = JSON.parse(event.data as string);
 
-    if (statusRef.current === "evaluating") {
-      console.log("[LUMA evaluating] event:", message);
-    }
+          if (statusRef.current === "evaluating") {
+            console.log("[LUMA evaluating] event:", message);
+          }
 
-    // Ignora eventi di buffer audio che non ci interessano
-    if (
-      message.type === "input_audio_buffer.append" ||
-      message.type === "input_audio_buffer.speech_started" ||
-      message.type === "input_audio_buffer.speech_stopped" ||
-      message.type === "output_audio_buffer.delta"
-    ) {
-      return;
-    }
+          // ignora eventi audio che non servono
+          if (
+            message.type === "input_audio_buffer.append" ||
+            message.type === "input_audio_buffer.speech_started" ||
+            message.type === "input_audio_buffer.speech_stopped" ||
+            message.type === "output_audio_buffer.delta"
+          ) {
+            return;
+          }
 
-    // Tracciamo il "purpose" di ogni response
-    if (message.type === "response.created" && message.response?.id) {
-      const purpose = message.response.metadata?.purpose as
-        | string
-        | undefined;
-      responseMetadataRef.current[message.response.id] = purpose;
+          // mappa response_id -> purpose
+          if (message.type === "response.created" && message.response?.id) {
+            const purpose = message.response.metadata?.purpose as
+              | string
+              | undefined;
+            responseMetadataRef.current[message.response.id] = purpose;
 
-      if (purpose === "speaking_report") {
-        evaluationBufferRef.current = "";
-        appendLog(
-          "Started receiving speaking_report response: " +
-            message.response.id
-        );
-      } else {
-        appendLog("Response created: " + message.response.id);
-      }
-      return;
-    }
+            if (purpose === "speaking_report") {
+              evaluationBufferRef.current = "";
+              appendLog(
+                "Started receiving speaking_report response: " +
+                  message.response.id
+              );
+            } else {
+              appendLog("Response created: " + message.response.id);
+            }
+            return;
+          }
 
-    // Accumulo del testo del report (delta)
-    if (message.type === "response.text.delta") {
-      const responseId = message.response_id as string | undefined;
-      const purpose = responseId
-        ? responseMetadataRef.current[responseId]
-        : undefined;
+          const getPurpose = (): string | undefined => {
+            const rid =
+              (message.response_id as string | undefined) ??
+              (message.response?.id as string | undefined) ??
+              (message.item?.response_id as string | undefined);
+            if (!rid) return undefined;
+            return responseMetadataRef.current[rid];
+          };
 
-      if (purpose === "speaking_report" && typeof message.delta === "string") {
-        evaluationBufferRef.current += message.delta;
-        appendLog(
-          "Accumulated report length: " +
-            evaluationBufferRef.current.length
-        );
-      } else if (message.delta?.trim()) {
-        appendLog(`LUMA: ${message.delta}`);
-      }
-      return;
-    }
+          const purpose = getPurpose();
 
-    // Fine del testo del report
-    if (message.type === "response.text.done") {
-      const responseId = message.response_id as string | undefined;
-      const purpose = responseId
-        ? responseMetadataRef.current[responseId]
-        : undefined;
+          // accumulo delta testuali
+          if (
+            message.type === "response.text.delta" ||
+            message.type === "response.output_text.delta"
+          ) {
+            const deltaText =
+              typeof message.delta === "string"
+                ? message.delta
+                : typeof message.text === "string"
+                ? message.text
+                : "";
 
-      if (purpose === "speaking_report") {
-        evaluationBufferRef.current += message.text ?? "";
-        const fullText = evaluationBufferRef.current.trim();
-        evaluationBufferRef.current = "";
+            if (purpose === "speaking_report" && deltaText) {
+              evaluationBufferRef.current += deltaText;
+              appendLog(
+                "Accumulated report length: " +
+                  evaluationBufferRef.current.length
+              );
+            } else if (deltaText.trim()) {
+              appendLog(`LUMA: ${deltaText}`);
+            }
+            return;
+          }
 
-        appendLog(
-          "Speaking report completed. Calling processFinalReport..."
-        );
-        await processFinalReport(fullText);
-      } else if (message.text?.trim()) {
-        appendLog(`LUMA: ${message.text}`);
-      }
-      return;
-    }
+          // fine testo report
+          if (
+            message.type === "response.text.done" ||
+            message.type === "response.output_text.done"
+          ) {
+            const doneText =
+              typeof message.text === "string" ? message.text : "";
 
-    if (message.type === "response.done") {
-      appendLog("Response finished.");
-      return;
-    }
+            if (purpose === "speaking_report") {
+              evaluationBufferRef.current += doneText;
+              const fullText = evaluationBufferRef.current.trim();
+              evaluationBufferRef.current = "";
 
-    appendLog(`Event: ${message.type}`);
-  } catch (err: any) {
-    console.error("Error parsing data channel message", err);
-  }
-};
+              appendLog(
+                "Speaking report completed. Calling processFinalReport..."
+              );
+              await processFinalReport(fullText);
+            } else if (doneText.trim()) {
+              appendLog(`LUMA: ${doneText}`);
+            }
+            return;
+          }
 
+          if (message.type === "response.done") {
+            appendLog("Response finished.");
+            return;
+          }
+
+          appendLog(`Event: ${message.type}`);
+        } catch (err: any) {
+          console.error("Error parsing data channel message", err);
+        }
+      };
 
       const offer = await pc.createOffer({ offerToReceiveAudio: true });
       await pc.setLocalDescription(offer);
@@ -782,42 +795,16 @@ dc.onmessage = async (event) => {
     }
   }
 
-function requestFinalEvaluation() {
-  const dc = dataChannelRef.current;
-  if (!dc || dc.readyState !== "open") {
-    appendLog("Data channel not open. Cannot request evaluation.");
-    return;
-  }
+  function requestFinalEvaluation() {
+    const dc = dataChannelRef.current;
+    if (!dc || dc.readyState !== "open") {
+      appendLog("Data channel not open. Cannot request evaluation.");
+      return;
+    }
 
-  setStatus("evaluating");
-  evaluationBufferRef.current = "";
-  appendLog("Requesting final written evaluation from LUMA...");
-
-  const instructions =
-    "You are an English speaking examiner. " +
-    "The user has just completed a speaking test. " +
-    "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
-    "Do not guess topics that were not clearly present. " +
-    "Do not mention visa, immigration or specific purposes unless they were explicitly stated by the candidate. " +
-    "Return ONLY valid JSON, with no extra text, using this exact schema: " +
-    '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
-
-  const event = {
-    type: "response.create",
-    response: {
-      instructions,
-      metadata: {
-        purpose: "speaking_report",
-      },
-      // QUI lo forziamo a generare SOLO TESTO
-      modalities: ["text"],
-    },
-  };
-
-  dc.send(JSON.stringify(event));
-  appendLog("Evaluation request event sent on data channel.");
-}
-
+    setStatus("evaluating");
+    evaluationBufferRef.current = "";
+    appendLog("Requesting final written evaluation from LUMA...");
 
     const instructions =
       "You are an English speaking examiner. " +
@@ -835,6 +822,7 @@ function requestFinalEvaluation() {
         metadata: {
           purpose: "speaking_report",
         },
+        modalities: ["text"],
       },
     };
 
@@ -842,43 +830,9 @@ function requestFinalEvaluation() {
     appendLog("Evaluation request event sent on data channel.");
   }
 
-  function isValidParsedEvaluation(
-    parsed: ReportState["parsed"] | undefined
-  ): parsed is NonNullable<ReportState["parsed"]> {
-    if (!parsed || typeof parsed !== "object") return false;
-
-    const hasStringArray = (value: unknown) =>
-      Array.isArray(value) && value.every((item) => typeof item === "string");
-
-    const hasRequiredFields =
-      Object.prototype.hasOwnProperty.call(parsed, "candidate_name") &&
-      Object.prototype.hasOwnProperty.call(parsed, "cefr_level") &&
-      Object.prototype.hasOwnProperty.call(parsed, "accent") &&
-      Object.prototype.hasOwnProperty.call(parsed, "strengths") &&
-      Object.prototype.hasOwnProperty.call(parsed, "weaknesses") &&
-      Object.prototype.hasOwnProperty.call(parsed, "recommendations") &&
-      Object.prototype.hasOwnProperty.call(parsed, "overall_comment");
-
-    if (!hasRequiredFields) return false;
-
-    const hasValidCandidateName =
-      typeof parsed.candidate_name === "string" || parsed.candidate_name === null;
-
-    return (
-      hasValidCandidateName &&
-      typeof parsed.cefr_level === "string" &&
-      typeof parsed.accent === "string" &&
-      hasStringArray(parsed.strengths) &&
-      hasStringArray(parsed.weaknesses) &&
-      hasStringArray(parsed.recommendations) &&
-      typeof parsed.overall_comment === "string"
-    );
-  }
-
   async function submitReport(finalReport: ReportState) {
     setIsSubmittingReport(true);
     appendLog("submitReport called. Sending POST /api/report ...");
-    appendLog("Submitting evaluation to /api/report...");
 
     const payload = {
       candidate: {
@@ -897,7 +851,7 @@ function requestFinalEvaluation() {
       },
     };
 
-    console.log("[LUMA] evaluation.rawJson:", payload.evaluation.rawJson);
+    console.log("[LUMA] /api/report payload:", payload);
 
     try {
       const resp = await fetch("/api/report", {
@@ -922,7 +876,9 @@ function requestFinalEvaluation() {
       }));
       appendLog("Report saved and formatted.");
     } catch (e: any) {
-      appendLog("Network error while saving report: " + (e?.message || "unknown"));
+      appendLog(
+        "Network error while saving report: " + (e?.message || "unknown")
+      );
       alert("Network error while generating the report. Please try again.");
     } finally {
       setIsSubmittingReport(false);
@@ -941,34 +897,19 @@ function requestFinalEvaluation() {
       return;
     }
 
-    const finalReport: ReportState = { rawText: trimmed };
-    setReport(finalReport);
-
     let parsed: ReportState["parsed"] | undefined;
 
     try {
       parsed = JSON.parse(trimmed);
+      console.log("[LUMA] Parsed evaluation object:", parsed);
     } catch (error) {
       console.error("[LUMA] Failed to parse evaluation JSON", error);
-      appendLog("Invalid evaluation JSON received. Sending raw text only.");
-      parsed = undefined;
+      // mandiamo comunque il rawText
     }
 
-    console.log("[LUMA] Parsed evaluation object:", parsed);
-
-    if (!isValidParsedEvaluation(parsed)) {
-      console.warn(
-        "[LUMA] Evaluation JSON missing required fields, sending raw text anyway"
-      );
-      appendLog("Evaluation JSON missing required fields. Sending raw text anyway.");
-    }
-
-    const finalParsedReport: ReportState = {
-      rawText: trimmed,
-      parsed: parsed || undefined,
-    };
-    setReport(finalParsedReport);
-    await submitReport(finalParsedReport);
+    const finalReport: ReportState = { rawText: trimmed, parsed };
+    setReport(finalReport);
+    await submitReport(finalReport);
   }
 
   function stopTest() {
@@ -1346,8 +1287,8 @@ function requestFinalEvaluation() {
                     </>
                   ) : (
                     <p className="text-slate-300">
-                      The evaluation is being structured. Please try again if
-                      it does not appear shortly.
+                      The evaluation is being structured. Please try again if it
+                      does not appear shortly.
                     </p>
                   )}
                 </div>
