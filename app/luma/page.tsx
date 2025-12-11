@@ -632,6 +632,7 @@ export default function LumaSpeakingTestPage() {
           "You are acting as a formal English speaking examiner. Speak clearly in English, be friendly and professional, and keep your turns concise.",
           "This is a A1–C2 speaking test. You must choose the topics and questions yourself. Never ask the candidate to design the test or choose the topics.",
           "Use the test purpose and context to decide on appropriate topics (e.g. university admission, job application, Erasmus, visa).",
+          "Never use customer-service phrases such as 'How can I help you?' or 'How may I help you today?'. This is an exam, not a generic assistant interaction.",
           "Structure the interview like an official exam: short warm-up, some guided questions, then more open questions. Encourage the candidate to speak at length.",
           "Do not summarise the conversation, do not give advice, and do not provide any spoken evaluation or score during the test.",
           "When the system later asks you for a JSON evaluation, you must only return JSON and you must not speak to the candidate in that response.",
@@ -665,7 +666,12 @@ export default function LumaSpeakingTestPage() {
           response: {
             metadata: { purpose: "initial_greeting" },
             instructions:
-              "Introduce yourself briefly as LUMA, the AI speaking examiner, and start the exam with a simple warm-up question. Do not talk about evaluation or scores.",
+              "Start immediately as an English speaking examiner in a formal test. " +
+              "Say something like: 'Hello, my name is LUMA and I will be your speaking examiner today. " +
+              "Let's begin with a few questions about you.' Then ask a simple warm-up question such as " +
+              "'Can you tell me a little about yourself?' " +
+              "Do NOT say 'How can I help you?' or similar customer-service phrases. " +
+              "Do not mention scores, feedback or evaluation at this stage.",
           },
         } as const;
 
