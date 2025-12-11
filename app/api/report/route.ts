@@ -36,7 +36,8 @@ function validatePayload(body: any) {
   const { candidate, evaluation } = body || {};
 
   if (!candidate || typeof candidate !== "object") return false;
-  if (!candidate.firstName || !candidate.lastName || !candidate.email) return false;
+  if (!candidate.firstName || !candidate.lastName || !candidate.email)
+    return false;
 
   if (!evaluation || typeof evaluation !== "object") return false;
 
@@ -44,9 +45,9 @@ function validatePayload(body: any) {
     typeof evaluation.rawJson === "string" &&
     evaluation.rawJson.trim().length > 0;
 
-  const hasParsed =
-    evaluation.parsed && typeof evaluation.parsed === "object";
+  const hasParsed = evaluation.parsed && typeof evaluation.parsed === "object";
 
+  // Basta che ci sia raw JSON O parsed JSON
   if (!hasRaw && !hasParsed) return false;
 
   return true;
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
     console.log("[/api/report] Incoming payload", body);
 
     if (!validatePayload(body)) {
-      console.warn("[/api/report] Invalid payload");
+      console.error("[/api/report] Invalid payload");
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
@@ -184,7 +185,7 @@ export async function POST(req: NextRequest) {
     let localReportPath: string | null = null;
 
     try {
-      airtableId = await saveLumaReport({
+      const airtablePayload = {
         firstName: candidate.firstName,
         lastName: candidate.lastName,
         email: candidate.email!,
@@ -195,13 +196,25 @@ export async function POST(req: NextRequest) {
         recommendations: evaluation.parsed?.recommendations,
         overallComment: evaluation.parsed?.overall_comment,
         rawJson: stringifyEvaluation(evaluation),
-      });
+      };
+
+      console.log("[Airtable] LUMA report fields", airtablePayload);
+
+      airtableId = await saveLumaReport(airtablePayload);
     } catch (error) {
       console.error(
         "[/api/report] Error saving LUMA report to Airtable",
         JSON.stringify(error, null, 2)
       );
       airtableId = null;
+    }
+
+    try {
+      localReportPath = await saveReportLocally(candidate, evaluation, reportText);
+    } catch (error) {
+      // in produzione (Vercel) può fallire, non è grave
+      console.warn("[/api/report] Unable to save local report file", error);
+      localReportPath = null;
     }
 
     console.log(
