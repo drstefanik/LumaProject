@@ -385,6 +385,7 @@ export default function LumaSpeakingTestPage() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const responseMetadataRef = useRef<Record<string, string | undefined>>({});
+  const isModelSpeakingRef = useRef(false);
 
   const statusRef = useRef<Status>("idle");
 
@@ -556,7 +557,13 @@ export default function LumaSpeakingTestPage() {
       appendLog("Requesting microphone access...");
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
         micStreamRef.current = stream;
         appendLog("Microphone access granted.");
       } catch (err) {
@@ -637,6 +644,11 @@ export default function LumaSpeakingTestPage() {
             type: "realtime",
             model: REALTIME_MODEL,
             instructions: sessionInstructions,
+            turn_detection: {
+              type: "server",
+              threshold: 0.7,
+              silence_ms: 900,
+            },
           },
         } as const;
 
@@ -670,6 +682,21 @@ export default function LumaSpeakingTestPage() {
                 (message.error?.message || JSON.stringify(message.error || message))
             );
             setStatus("active");
+            return;
+          }
+
+          if (message.type?.startsWith("output_audio_buffer.")) {
+            if (message.type === "output_audio_buffer.started") {
+              isModelSpeakingRef.current = true;
+            }
+
+            if (
+              message.type === "output_audio_buffer.stopped" ||
+              message.type === "output_audio_buffer.done"
+            ) {
+              isModelSpeakingRef.current = false;
+            }
+
             return;
           }
 
@@ -890,6 +917,7 @@ export default function LumaSpeakingTestPage() {
         metadata: {
           purpose: "speaking_report",
         },
+        modalities: ["text"],
         // niente audio richiesto esplicitamente, ma anche se parla
         // noi leggiamo il testo/transcript
       },
