@@ -418,7 +418,7 @@ export default function LumaSpeakingTestPage() {
 
   useEffect(() => {
     if (!audioRef.current) return;
-    // Durante la valutazione vogliamo muto
+    // durante la valutazione niente audio (non deve leggere il report)
     audioRef.current.muted = status === "evaluating";
   }, [status]);
 
@@ -482,6 +482,7 @@ export default function LumaSpeakingTestPage() {
         return;
       }
 
+      // reset connessione precedente
       peerRef.current?.close();
       peerRef.current = null;
       dataChannelRef.current?.close();
@@ -562,7 +563,6 @@ export default function LumaSpeakingTestPage() {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
-            channelCount: 1,
           },
         });
         micStreamRef.current = stream;
@@ -629,15 +629,15 @@ export default function LumaSpeakingTestPage() {
 
         return [
           "You are LUMA, the Language Understanding Mastery Assistant of British Institutes.",
-          "You are acting as a formal English speaking examiner. Speak clearly in English, be friendly and professional, and keep your turns concise.",
-          "This is a A1–C2 speaking test. You must choose the topics and questions yourself. Never ask the candidate to design the test or choose the topics.",
-          "Use the test purpose and context to decide on appropriate topics (e.g. university admission, job application, Erasmus, visa).",
-          "Never use customer-service phrases such as 'How can I help you?' or 'How may I help you today?'. This is an exam, not a generic assistant interaction.",
-          "Structure the interview like an official exam: short warm-up, some guided questions, then more open questions. Encourage the candidate to speak at length.",
-          "Do not summarise the conversation, do not give advice, and do not provide any spoken evaluation or score during the test.",
-          "When the system later asks you for a JSON evaluation, you must only return JSON and you must not speak to the candidate in that response.",
-          "Keep the conversation flowing naturally but focused on assessing speaking skills, not chit-chat.",
+          "You act exactly like a human speaking examiner in an official exam. Be friendly but formal, and keep your questions focused on assessing speaking skills.",
+          "Do not say things like 'How can I help you today?'. This is not a generic assistant conversation.",
+          "Start the test by greeting the candidate, briefly stating that this is an English speaking test, and asking them to introduce themselves (name, where they are from, what they do or study).",
+          "You should take the lead: propose standard topics (studies/work, travel, future plans) without asking the candidate to invent topics or choose the format of the exam.",
+          "Keep your questions relatively short and clear, and use follow-ups to probe fluency, accuracy and range.",
+          "During the test you must NOT summarise the conversation and you must NOT give feedback or a level to the candidate.",
+          "When the system later requests a JSON evaluation, you will produce ONLY a written JSON report (no spoken feedback).",
           ...contextLines,
+          "Encourage the candidate to speak in full answers and keep the conversation flowing.",
         ].join("\n");
       })();
 
@@ -652,7 +652,7 @@ export default function LumaSpeakingTestPage() {
             type: "realtime",
             model: REALTIME_MODEL,
             instructions: sessionInstructions,
-            // VAD meno sensibile per non troncare le domande dell'esaminatore
+            // VAD meno sensibile per non tagliare le domande
             turn_detection: {
               type: "server",
               threshold: 0.75,
@@ -661,17 +661,13 @@ export default function LumaSpeakingTestPage() {
           },
         } as const;
 
+        // non forziamo un testo specifico, lasciamo che segua le instructions
         const greetingEvent = {
           type: "response.create",
           response: {
             metadata: { purpose: "initial_greeting" },
             instructions:
-              "Start immediately as an English speaking examiner in a formal test. " +
-              "Say something like: 'Hello, my name is LUMA and I will be your speaking examiner today. " +
-              "Let's begin with a few questions about you.' Then ask a simple warm-up question such as " +
-              "'Can you tell me a little about yourself?' " +
-              "Do NOT say 'How can I help you?' or similar customer-service phrases. " +
-              "Do not mention scores, feedback or evaluation at this stage.",
+              "Begin the speaking test now following the given instructions. Do NOT ask 'How can I help you?'.",
           },
         } as const;
 
@@ -687,7 +683,7 @@ export default function LumaSpeakingTestPage() {
             console.log("[LUMA evaluating] event:", message);
           }
 
-          // error dal realtime
+          // error esplicito dal realtime
           if (message.type === "error") {
             console.error("[LUMA realtime error]", message.error || message);
             appendLog(
@@ -699,30 +695,7 @@ export default function LumaSpeakingTestPage() {
             return;
           }
 
-          // durante la valutazione ignoriamo qualsiasi audio
-          if (
-            statusRef.current === "evaluating" &&
-            message.type?.startsWith("output_audio")
-          ) {
-            return;
-          }
-
-          if (message.type?.startsWith("output_audio_buffer.")) {
-            if (message.type === "output_audio_buffer.started") {
-              isModelSpeakingRef.current = true;
-            }
-
-            if (
-              message.type === "output_audio_buffer.stopped" ||
-              message.type === "output_audio_buffer.done"
-            ) {
-              isModelSpeakingRef.current = false;
-            }
-
-            return;
-          }
-
-          // Eventi audio in ingresso che non ci servono nei log
+          // eventi audio che ignoriamo
           if (
             message.type === "input_audio_buffer.append" ||
             message.type === "input_audio_buffer.speech_started" ||
@@ -732,7 +705,20 @@ export default function LumaSpeakingTestPage() {
             return;
           }
 
-          // Tracciamo il purpose di ogni response
+          if (message.type?.startsWith("output_audio_buffer.")) {
+            if (message.type === "output_audio_buffer.started") {
+              isModelSpeakingRef.current = true;
+            }
+            if (
+              message.type === "output_audio_buffer.stopped" ||
+              message.type === "output_audio_buffer.done"
+            ) {
+              isModelSpeakingRef.current = false;
+            }
+            return;
+          }
+
+          // traccia purpose delle risposte
           if (message.type === "response.created" && message.response?.id) {
             const purpose = message.response.metadata?.purpose as
               | string
@@ -785,7 +771,7 @@ export default function LumaSpeakingTestPage() {
           const isEvaluatingReport =
             statusRef.current === "evaluating" && isReportResponse;
 
-          // Accumulo testo del report finale
+          // accumula qualsiasi testo durante la valutazione
           if (
             isEvaluatingReport &&
             (message.type === "response.output_text.delta" ||
@@ -793,17 +779,24 @@ export default function LumaSpeakingTestPage() {
               message.type === "response.output_audio_transcript.delta" ||
               message.type === "response.output_audio_transcript.append" ||
               message.type === "response.content_part.added" ||
-              message.type === "response.text.delta")
+              message.type === "response.text.delta" ||
+              message.type === "response.output_item.delta")
           ) {
-            const chunk =
-              typeof message.delta === "string"
-                ? message.delta
-                : typeof message.text === "string"
-                ? message.text
-                : Array.isArray(message.content) &&
-                  typeof message.content?.[0]?.text === "string"
-                ? message.content[0].text
-                : "";
+            let chunk = "";
+
+            if (typeof message.delta === "string") {
+              chunk = message.delta;
+            } else if (typeof message.text === "string") {
+              chunk = message.text;
+            } else if (
+              Array.isArray(message.content) &&
+              typeof message.content?.[0]?.text === "string"
+            ) {
+              chunk = message.content[0].text;
+            } else if (typeof message.part?.text === "string") {
+              // per response.content_part.added
+              chunk = message.part.text;
+            }
 
             if (chunk) {
               evaluationBufferRef.current += chunk;
@@ -815,23 +808,22 @@ export default function LumaSpeakingTestPage() {
             return;
           }
 
-          if (
-            isEvaluatingReport &&
-            (message.type === "response.completed" ||
-              message.type === "response.output_item.done" ||
-              message.type === "response.output_text.done" ||
-              message.type === "response.text.done")
-          ) {
-            appendLog(
-              "Speaking report completed. Calling processFinalReport..."
-            );
-            if (typeof message.text === "string" && message.text) {
-              evaluationBufferRef.current += message.text;
+          // fine della risposta di valutazione – qui chiamiamo SEMPRE processFinalReport
+          if (message.type === "response.done") {
+            const isEvalDone =
+              statusRef.current === "evaluating" && isReportResponse;
+
+            if (isEvalDone) {
+              appendLog(
+                "Speaking report completed (response.done). Calling processFinalReport..."
+              );
+              const fullText = evaluationBufferRef.current.trim();
+              evaluationBufferRef.current = "";
+              reportResponseIdRef.current = null;
+              await processFinalReport(fullText);
+            } else {
+              appendLog("Response finished.");
             }
-            const fullText = evaluationBufferRef.current;
-            evaluationBufferRef.current = "";
-            reportResponseIdRef.current = null;
-            await processFinalReport(fullText);
             return;
           }
 
@@ -854,20 +846,10 @@ export default function LumaSpeakingTestPage() {
             const purpose = responseMetadataRef.current[message.response_id];
             if (purpose === "speaking_report") {
               evaluationBufferRef.current += message.text ?? "";
-              const fullText = evaluationBufferRef.current.trim();
-              evaluationBufferRef.current = "";
-              appendLog(
-                "Speaking report completed. Calling processFinalReport..."
-              );
-              await processFinalReport(fullText);
+              // non chiamiamo qui processFinalReport, aspettiamo response.done
             } else if (message.text?.trim()) {
               appendLog(`LUMA: ${message.text}`);
             }
-            return;
-          }
-
-          if (message.type === "response.done") {
-            appendLog("Response finished.");
             return;
           }
 
@@ -933,11 +915,11 @@ export default function LumaSpeakingTestPage() {
       "You are an English speaking examiner. " +
       "The user has just completed a speaking test. " +
       "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
-      "Do not invent topics or details that were not clearly present. " +
+      "Do not guess topics that were not clearly present. " +
       "Do not mention visa, immigration or specific purposes unless they were explicitly stated by the candidate. " +
-      "You MUST NOT speak, play audio, or address the candidate in this response. " +
-      "Return ONLY valid JSON as plain text, with no introduction or explanation, using this exact schema: " +
-      '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
+      "Return ONLY valid JSON, with no extra text, using this exact schema: " +
+      '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string } ' +
+      "Answer in JSON only and DO NOT speak the evaluation out loud.";
 
     const event = {
       type: "response.create",
@@ -1021,19 +1003,10 @@ export default function LumaSpeakingTestPage() {
       return;
     }
 
-    // Cerchiamo di isolare SOLO il blocco JSON
-    let jsonCandidate = trimmed;
-    const firstBrace = trimmed.indexOf("{");
-    const lastBrace = trimmed.lastIndexOf("}");
-
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      jsonCandidate = trimmed.slice(firstBrace, lastBrace + 1);
-    }
-
     let parsed: ReportState["parsed"] | undefined;
 
     try {
-      parsed = JSON.parse(jsonCandidate);
+      parsed = JSON.parse(trimmed);
     } catch (error) {
       console.warn("[LUMA] Failed to parse evaluation JSON", error);
       appendLog("Invalid evaluation JSON received. Sending raw text only.");
@@ -1042,7 +1015,7 @@ export default function LumaSpeakingTestPage() {
     console.log("[LUMA] Parsed evaluation object:", parsed);
 
     const finalParsedReport: ReportState = {
-      rawText: jsonCandidate,
+      rawText: trimmed,
       parsed: parsed || undefined,
     };
     setReport(finalParsedReport);
