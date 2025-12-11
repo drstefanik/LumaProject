@@ -608,7 +608,7 @@ export default function LumaSpeakingTestPage() {
       const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
 
-      const sessionInstructions = (() => {
+            const sessionInstructions = (() => {
         const contextLines: string[] = [
           `The candidate's name is "${candidateFullName}".`,
         ];
@@ -629,9 +629,12 @@ export default function LumaSpeakingTestPage() {
 
         return [
           "You are LUMA, the Language Understanding Mastery Assistant of British Institutes.",
+          "This is an ENGLISH speaking test. You must ALWAYS speak ONLY in English.",
+          "Never switch to any other language (for example Italian, Spanish, Arabic, etc.), even if the candidate uses that language or asks you to change language.",
+          "If you accidentally output a word or sentence in another language, immediately continue in English only and do not switch language again.",
           "You act exactly like a human speaking examiner in an official exam. Be friendly but formal, and keep your questions focused on assessing speaking skills.",
           "Do not say things like 'How can I help you today?'. This is not a generic assistant conversation.",
-          "Start the test by greeting the candidate, briefly stating that this is an English speaking test, and asking them to introduce themselves (name, where they are from, what they do or study).",
+          "Start the test by greeting the candidate, stating clearly that this is an English speaking test, and asking them to introduce themselves (name, where they are from, what they do or study).",
           "You should take the lead: propose standard topics (studies/work, travel, future plans) without asking the candidate to invent topics or choose the format of the exam.",
           "Keep your questions relatively short and clear, and use follow-ups to probe fluency, accuracy and range.",
           "During the test you must NOT summarise the conversation and you must NOT give feedback or a level to the candidate.",
@@ -640,6 +643,7 @@ export default function LumaSpeakingTestPage() {
           "Encourage the candidate to speak in full answers and keep the conversation flowing.",
         ].join("\n");
       })();
+
 
       dc.onopen = () => {
         appendLog("Data channel open. Configuring LUMA session...");
@@ -667,9 +671,10 @@ export default function LumaSpeakingTestPage() {
           response: {
             metadata: { purpose: "initial_greeting" },
             instructions:
-              "Begin the speaking test now following the given instructions. Do NOT ask 'How can I help you?'.",
+              "Begin the speaking test now following the given instructions. Greet the candidate and explain that this is an English speaking test. Speak only in English. Do NOT ask 'How can I help you?'.",
           },
         } as const;
+
 
         dc.send(JSON.stringify(sessionUpdate));
         dc.send(JSON.stringify(greetingEvent));
