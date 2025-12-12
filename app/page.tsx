@@ -36,6 +36,7 @@ const steps = [
 export default function HomePage() {
   return (
     <main className="relative isolate min-h-screen overflow-hidden bg-slate-950 text-slate-50">
+      {/* BACKGROUND GLOW */}
       <div className="pointer-events-none absolute inset-0 opacity-60">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950" />
         <div className="absolute -left-20 -top-24 h-72 w-72 rounded-full bg-sky-500/40 blur-3xl" />
@@ -102,15 +103,11 @@ export default function HomePage() {
               aria-hidden
             />
 
-            <div className="overflow-hidden rounded-2xl border border-white/10">
-              <video
-                src="/Luma-project.gif" // file in /public
-                autoPlay
-                loop
-                muted
-                playsInline
+            <div className="overflow-hidden rounded-2xl border border-white/10 aspect-[16/9]">
+              <img
+                src="/Luma-project.gif"
+                alt="LUMA demo in action"
                 className="h-full w-full object-cover"
-                aria-label="LUMA demo in action"
               />
             </div>
           </div>
