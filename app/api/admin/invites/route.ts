@@ -61,7 +61,11 @@ export async function POST(request: Request) {
     createdBy: session.email,
   });
 
-  await createAudit(session.email, "INVITE_CREATE");
+  try {
+    await createAudit(session.email, "INVITE_CREATE");
+  } catch (error) {
+    console.error("audit log failed", error);
+  }
 
   return NextResponse.json({ ok: true, otp, expiresAt });
 }
