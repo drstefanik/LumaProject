@@ -178,18 +178,27 @@ export async function getAdminByEmail(email: string) {
 }
 
 export async function countAdmins() {
-  const tableName = process.env.AIRTABLE_TABLE_ADMINS;
+  try {
+    const tableName = process.env.AIRTABLE_TABLE_ADMINS;
 
-  if (!tableName) {
-    throw new Error("AIRTABLE_TABLE_ADMINS is missing.");
+    if (!tableName) {
+      console.error("AIRTABLE_TABLE_ADMINS is missing.");
+      return 0;
+    }
+
+    const params = new URLSearchParams();
+    params.set("pageSize", "100");
+    params.append("fields[]", "Email");
+
+    const records = await fetchAllRecords<AdminUserFields>(tableName, params);
+    if (!records) {
+      return 0;
+    }
+    return records.length;
+  } catch (err) {
+    console.error("countAdmins error", err);
+    return 0;
   }
-
-  const params = new URLSearchParams();
-  params.set("pageSize", "100");
-  params.append("fields[]", "Email");
-
-  const records = await fetchAllRecords<AdminUserFields>(tableName, params);
-  return records.length;
 }
 
 export async function createAdmin(fields: {
@@ -199,36 +208,58 @@ export async function createAdmin(fields: {
   fullName?: string | null;
   isActive: boolean;
 }) {
-  const tableName = process.env.AIRTABLE_TABLE_ADMINS;
+  try {
+    const tableName = process.env.AIRTABLE_TABLE_ADMINS;
 
-  if (!tableName) {
-    throw new Error("AIRTABLE_TABLE_ADMINS is missing.");
-  }
+    if (!tableName) {
+      console.error("AIRTABLE_TABLE_ADMINS is missing.");
+      return { ok: false, error: "AIRTABLE_TABLE_ADMINS missing" };
+    }
 
-  const response = await fetch(getTableUrl(tableName), {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify({
-      records: [
-        {
-          fields: {
-            Email: fields.email,
-            PasswordHash: fields.passwordHash,
-            Role: fields.role ?? undefined,
-            FullName: fields.fullName ?? undefined,
-            IsActive: fields.isActive,
+    if (!fields.email) {
+      console.error("createAdmin error: email is required");
+      return { ok: false, error: "Email is required" };
+    }
+
+    if (!fields.passwordHash) {
+      console.error("createAdmin error: passwordHash is required");
+      return { ok: false, error: "Password hash is required" };
+    }
+
+    const response = await fetch(getTableUrl(tableName), {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({
+        records: [
+          {
+            fields: {
+              Email: fields.email,
+              PasswordHash: fields.passwordHash,
+              Role: fields.role ?? undefined,
+              FullName: fields.fullName ?? undefined,
+              IsActive: fields.isActive,
+            },
           },
-        },
-      ],
-    }),
-  });
+        ],
+      }),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Airtable admin create failed: ${response.status} ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        "Airtable admin create failed",
+        response.status,
+        errorText,
+      );
+      return { ok: false, error: "Airtable admin create failed" };
+    }
+
+    const data = (await response.json()) as AirtableListResponse<AdminUserFields>;
+    return { ok: true, data };
+  } catch (err) {
+    console.error("createAdmin error", err);
+    return { ok: false, error: "Internal error creating admin" };
   }
-
-  return (await response.json()) as AirtableListResponse<AdminUserFields>;
 }
 
 export async function createAudit(
