@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type ReportListItem = {
+  id: string;
+  fields: {
+    ReportID?: string;
+  };
   reportId: string;
   candidateEmail: string | null;
   cefrLevel: string | null;
@@ -216,8 +220,8 @@ export default function AdminReportsPage() {
               </tr>
             ) : null}
             {items.map((item) => {
-              const reportId = item.reportId.trim();
-              const canView = Boolean(reportId);
+              const reportKey = String(item.fields?.ReportID ?? "").trim() || item.id;
+              const canView = Boolean(reportKey);
 
               return (
                 <tr key={item.reportId} className="text-slate-700">
@@ -236,7 +240,7 @@ export default function AdminReportsPage() {
                       <Link
                         href={
                           canView
-                            ? `/admin/reports/${encodeURIComponent(reportId)}`
+                            ? `/admin/reports/${encodeURIComponent(reportKey)}`
                             : "#"
                         }
                         aria-disabled={!canView}
