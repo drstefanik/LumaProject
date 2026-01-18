@@ -215,51 +215,65 @@ export default function AdminReportsPage() {
                 </td>
               </tr>
             ) : null}
-            {items.map((item) => (
-              <tr key={item.reportId} className="text-slate-700">
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {item.reportId}
-                </td>
-                <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
-                <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
-                <td className="px-4 py-3">{item.accent ?? "—"}</td>
-                <td className="px-4 py-3">
-                  {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
-                </td>
-                <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Link
-                      href={`/admin/reports/${encodeURIComponent(item.reportId)}`}
-                      className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      View
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleGeneratePdf(item.reportId)}
-                      className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Generate PDF
-                    </button>
-                    {item.pdfUrl ? (
-                      <a
-                        href={item.pdfUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+            {items.map((item) => {
+              const reportId = item.reportId.trim();
+              const canView = Boolean(reportId);
+
+              return (
+                <tr key={item.reportId} className="text-slate-700">
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    {item.reportId}
+                  </td>
+                  <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
+                  <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
+                  <td className="px-4 py-3">{item.accent ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
+                  </td>
+                  <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Link
+                        href={
+                          canView
+                            ? `/admin/reports/${encodeURIComponent(reportId)}`
+                            : "#"
+                        }
+                        aria-disabled={!canView}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition ${
+                          canView
+                            ? "border-slate-200 text-slate-700 hover:bg-slate-50"
+                            : "cursor-not-allowed border-slate-200 text-slate-400"
+                        }`}
                       >
-                        Download
-                      </a>
-                    ) : (
-                      <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
-                        Download
-                      </span>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                        View
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleGeneratePdf(item.reportId)}
+                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Generate PDF
+                      </button>
+                      {item.pdfUrl ? (
+                        <a
+                          href={item.pdfUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          Download
+                        </a>
+                      ) : (
+                        <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
+                          Download
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

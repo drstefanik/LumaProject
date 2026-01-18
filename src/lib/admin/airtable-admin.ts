@@ -334,17 +334,24 @@ export async function listReports(params: {
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
 
-  const items: ReportListItem[] = records.slice(start, end).map((record) => ({
-    reportId: record.fields.ReportID ?? record.id,
-    candidateEmail: record.fields.CandidateEmail ?? null,
-    cefrLevel: record.fields.CEFR_Level ?? null,
-    accent: record.fields.Accent ?? null,
-    createdAt: record.fields.CreatedAt ?? record.createdTime ?? null,
-    pdfUrl: record.fields.PDFUrl ?? null,
-    pdfStatus: record.fields.PDFStatus ?? null,
-    pdfGeneratedAt: record.fields.PDFGeneratedAt ?? null,
-    examDate: record.fields.ExamDate ?? null,
-  }));
+  const items: ReportListItem[] = records.slice(start, end).map((record) => {
+    const reportId =
+      typeof record.fields.ReportID === "string" && record.fields.ReportID.trim()
+        ? record.fields.ReportID.trim()
+        : record.id;
+
+    return {
+      reportId,
+      candidateEmail: record.fields.CandidateEmail ?? null,
+      cefrLevel: record.fields.CEFR_Level ?? null,
+      accent: record.fields.Accent ?? null,
+      createdAt: record.fields.CreatedAt ?? record.createdTime ?? null,
+      pdfUrl: record.fields.PDFUrl ?? null,
+      pdfStatus: record.fields.PDFStatus ?? null,
+      pdfGeneratedAt: record.fields.PDFGeneratedAt ?? null,
+      examDate: record.fields.ExamDate ?? null,
+    };
+  });
 
   return { items, total, page, pageSize };
 }
