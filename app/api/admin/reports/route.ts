@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { listReports } from "@/src/lib/admin/airtable-admin";
-import {
-  adminSessionCookieName,
-  verifyAdminSession,
-} from "@/src/lib/admin/session";
+import { getAdminFromRequest } from "@/src/lib/admin/session";
 
 export async function GET(request: Request) {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const tokenMatch = cookieHeader
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${adminSessionCookieName}=`));
-  const token = tokenMatch?.split("=")[1];
-
-  const session = await verifyAdminSession(token);
+  const session = await getAdminFromRequest(request);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }

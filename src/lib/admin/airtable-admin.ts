@@ -157,7 +157,7 @@ function buildReportFilterFormula(params: {
   return `AND(${clauses.join(",")})`;
 }
 
-export async function getAdminUserByEmail(email: string) {
+export async function getAdminByEmail(email: string) {
   const tableName = process.env.AIRTABLE_TABLE_ADMINS;
 
   if (!tableName) {
@@ -177,7 +177,61 @@ export async function getAdminUserByEmail(email: string) {
   return data.records[0] ?? null;
 }
 
-export async function createAuditLog(
+export async function countAdmins() {
+  const tableName = process.env.AIRTABLE_TABLE_ADMINS;
+
+  if (!tableName) {
+    throw new Error("AIRTABLE_TABLE_ADMINS is missing.");
+  }
+
+  const params = new URLSearchParams();
+  params.set("pageSize", "100");
+  params.append("fields[]", "Email");
+
+  const records = await fetchAllRecords<AdminUserFields>(tableName, params);
+  return records.length;
+}
+
+export async function createAdmin(fields: {
+  email: string;
+  passwordHash: string;
+  role?: string | null;
+  fullName?: string | null;
+  isActive: boolean;
+}) {
+  const tableName = process.env.AIRTABLE_TABLE_ADMINS;
+
+  if (!tableName) {
+    throw new Error("AIRTABLE_TABLE_ADMINS is missing.");
+  }
+
+  const response = await fetch(getTableUrl(tableName), {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({
+      records: [
+        {
+          fields: {
+            Email: fields.email,
+            PasswordHash: fields.passwordHash,
+            Role: fields.role ?? undefined,
+            FullName: fields.fullName ?? undefined,
+            IsActive: fields.isActive,
+          },
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Airtable admin create failed: ${response.status} ${errorText}`);
+  }
+
+  return (await response.json()) as AirtableListResponse<AdminUserFields>;
+}
+
+export async function createAudit(
   actorEmail: string,
   action: string,
   reportId?: string,
@@ -264,7 +318,7 @@ export async function listReports(params: {
   return { items, total, page, pageSize };
 }
 
-export async function getReportByReportId(reportId: string) {
+export async function getReportByReportID(reportId: string) {
   const tableName = process.env.LUMA_REPORTS_TABLE;
 
   if (!tableName) {
@@ -279,7 +333,7 @@ export async function getReportByReportId(reportId: string) {
   return data.records[0] ?? null;
 }
 
-export async function updateReportByReportId(
+export async function updateReportByReportID(
   reportId: string,
   fields: Record<string, unknown>,
 ) {
@@ -289,7 +343,7 @@ export async function updateReportByReportId(
     throw new Error("LUMA_REPORTS_TABLE is missing.");
   }
 
-  const record = await getReportByReportId(reportId);
+  const record = await getReportByReportID(reportId);
   if (!record) {
     return null;
   }

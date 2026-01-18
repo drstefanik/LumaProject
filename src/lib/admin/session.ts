@@ -150,3 +150,46 @@ export function getAdminSessionCookieOptions() {
     path: "/",
   };
 }
+
+function parseCookieHeader(cookieHeader: string) {
+  return cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((acc, part) => {
+      const [key, ...rest] = part.split("=");
+      if (!key) {
+        return acc;
+      }
+      acc[key] = rest.join("=");
+      return acc;
+    }, {});
+}
+
+type CookieSetter = {
+  cookies: {
+    set: (name: string, value: string, options?: Record<string, unknown>) => void;
+  };
+};
+
+export async function setAdminSessionCookie(
+  response: CookieSetter,
+  payload: AdminSessionPayload,
+) {
+  const token = await signAdminSession(payload);
+  response.cookies.set(adminSessionCookieName, token, getAdminSessionCookieOptions());
+}
+
+export function clearAdminSessionCookie(response: CookieSetter) {
+  response.cookies.set(adminSessionCookieName, "", {
+    ...getAdminSessionCookieOptions(),
+    maxAge: 0,
+  });
+}
+
+export async function getAdminFromRequest(request: Request) {
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const cookies = parseCookieHeader(cookieHeader);
+  const token = cookies[adminSessionCookieName];
+  return verifyAdminSession(token);
+}
