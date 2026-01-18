@@ -3,6 +3,18 @@
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  autoUpdate,
+  flip,
+  offset,
+  shift,
+  size,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  useListNavigation,
+  useRole,
+} from "@floating-ui/react";
 
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
@@ -249,17 +261,10 @@ function SearchableSelect({
 }: SearchableSelectProps) {
   const [query, setQuery] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(0);
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<Array<HTMLButtonElement | null>>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  // Portal anchor position
-  const [menuPos, setMenuPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
 
   useEffect(() => {
     setQuery(value);
@@ -271,53 +276,60 @@ function SearchableSelect({
   }, [options, query]);
 
   useEffect(() => {
-    if (highlightedIndex >= filteredOptions.length) setHighlightedIndex(0);
-  }, [filteredOptions.length, highlightedIndex]);
-
-  function updateMenuPosition() {
-    const el = inputRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setMenuPos({
-      top: rect.bottom + 6 + window.scrollY,
-      left: rect.left + window.scrollX,
-      width: rect.width,
-    });
-  }
-
-  useEffect(() => {
     if (!isOpen) return;
+    // reset highlight quando cambia lista
+    setHighlightedIndex(filteredOptions.length ? 0 : null);
+  }, [isOpen, filteredOptions.length]);
 
-    updateMenuPosition();
+  const { refs, floatingStyles, context } = useFloating({
+    open: isOpen,
+    onOpenChange: (open) => {
+      if (disabled) return;
+      setIsOpen(open);
+    },
+    placement: "bottom-start",
+    whileElementsMounted: autoUpdate,
+    middleware: [
+      offset(6),
+      flip({ padding: 10 }), // se non c'è spazio sotto -> sopra
+      shift({ padding: 10 }), // evita che esca lateralmente
+      size({
+        padding: 10,
+        apply({ rects, availableHeight, elements }) {
+          Object.assign(elements.floating.style, {
+            width: `${rects.reference.width}px`,
+            maxHeight: `${Math.min(availableHeight, 220)}px`, // ~ max-h-52
+          });
+        },
+      }),
+    ],
+  });
 
-    const onResize = () => updateMenuPosition();
-    // Capture scroll on window + containers
-    const onScroll = () => updateMenuPosition();
+  // a11y + click outside/esc
+  const dismiss = useDismiss(context);
+  const role = useRole(context, { role: "listbox" });
 
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, true);
+  // keyboard navigation
+  const listNav = useListNavigation(context, {
+    listRef,
+    activeIndex: highlightedIndex ?? 0,
+    onNavigate: setHighlightedIndex,
+    loop: true,
+    virtual: true,
+  });
 
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node;
-      if (containerRef.current && !containerRef.current.contains(target)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    dismiss,
+    role,
+    listNav,
+  ]);
 
   function handleSelect(option: string) {
     setQuery(option);
     onChange(option);
     setIsOpen(false);
+    // mantiene focus sull'input
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function handleInputChange(e: ChangeEvent<HTMLInputElement>) {
@@ -325,7 +337,6 @@ function SearchableSelect({
     setQuery(newValue);
     onChange(newValue);
     if (!disabled) setIsOpen(true);
-    setHighlightedIndex(0);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -334,61 +345,33 @@ function SearchableSelect({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setIsOpen(true);
-      setHighlightedIndex((prev) =>
-        filteredOptions.length === 0 ? 0 : (prev + 1) % filteredOptions.length
-      );
+      setHighlightedIndex((prev) => {
+        const i = prev ?? -1;
+        return filteredOptions.length ? (i + 1) % filteredOptions.length : null;
+      });
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setIsOpen(true);
-      setHighlightedIndex((prev) =>
-        filteredOptions.length === 0
-          ? 0
-          : (prev - 1 + filteredOptions.length) % filteredOptions.length
-      );
-    } else if (e.key === "Enter" && isOpen && filteredOptions.length > 0) {
+      setHighlightedIndex((prev) => {
+        const i = prev ?? 0;
+        return filteredOptions.length
+          ? (i - 1 + filteredOptions.length) % filteredOptions.length
+          : null;
+      });
+    } else if (e.key === "Enter" && isOpen && filteredOptions.length) {
       e.preventDefault();
-      handleSelect(filteredOptions[highlightedIndex]);
+      const idx = highlightedIndex ?? 0;
+      const opt = filteredOptions[idx];
+      if (opt) handleSelect(opt);
     } else if (e.key === "Escape") {
       setIsOpen(false);
     }
   }
 
-  const menu =
-    isOpen && filteredOptions.length > 0 && menuPos
-      ? createPortal(
-          <div
-            className="fixed z-[9999]"
-            style={{
-              top: menuPos.top,
-              left: menuPos.left,
-              width: menuPos.width,
-            }}
-          >
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-slate-900/95 shadow-lg shadow-black/50 backdrop-blur">
-              <ul className="max-h-52 overflow-y-auto text-xs text-slate-100">
-                {filteredOptions.map((option, idx) => (
-                  <li key={option}>
-                    <button
-                      type="button"
-                      className={`flex w-full items-start px-3 py-2 text-left transition hover:bg-white/10 ${
-                        idx === highlightedIndex ? "bg-white/10" : ""
-                      }`}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleSelect(option)}
-                    >
-                      {option}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>,
-          document.body
-        )
-      : null;
+  const showMenu = isOpen && filteredOptions.length > 0;
 
   return (
-    <div className="flex flex-col gap-1" ref={containerRef}>
+    <div className="flex flex-col gap-1">
       <label className="text-[11px] uppercase tracking-wide text-slate-400">
         {label}
         {required ? " *" : ""}
@@ -396,33 +379,58 @@ function SearchableSelect({
 
       <div className="relative">
         <input
-          ref={inputRef}
+          ref={(node) => {
+            inputRef.current = node;
+            refs.setReference(node);
+          }}
           className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
           placeholder={placeholder}
           value={query}
           onChange={handleInputChange}
-          onFocus={() => {
-            if (disabled) return;
-            setIsOpen(true);
-            // next tick to ensure layout ready
-            requestAnimationFrame(() => updateMenuPosition());
-          }}
-          onClick={() => {
-            if (disabled) return;
-            setIsOpen(true);
-            requestAnimationFrame(() => updateMenuPosition());
-          }}
+          onFocus={() => !disabled && setIsOpen(true)}
+          onClick={() => !disabled && setIsOpen(true)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           autoComplete="off"
+          {...getReferenceProps()}
         />
 
-        {/* Portal menu (prevents being hidden by anything below) */}
-        {menu}
+        {showMenu &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div
+              ref={refs.setFloating}
+              style={floatingStyles}
+              className="z-[9999] overflow-hidden rounded-lg border border-white/10 bg-slate-900/95 shadow-lg shadow-black/50 backdrop-blur"
+              {...getFloatingProps()}
+            >
+              <ul className="overflow-y-auto text-xs text-slate-100">
+                {filteredOptions.map((option, idx) => (
+                  <li key={option}>
+                    <button
+                      ref={(node) => {
+                        listRef.current[idx] = node;
+                      }}
+                      type="button"
+                      className={`flex w-full items-start px-3 py-2 text-left transition hover:bg-white/10 ${
+                        idx === (highlightedIndex ?? 0) ? "bg-white/10" : ""
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()} // evita blur input
+                      onClick={() => handleSelect(option)}
+                    >
+                      {option}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>,
+            document.body
+          )}
       </div>
     </div>
   );
 }
+
 
 export default function LumaSpeakingTestPage() {
   const [status, setStatus] = useState<Status>("idle");
