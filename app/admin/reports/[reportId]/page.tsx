@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ReportResponse = {
   ok: boolean;
@@ -20,30 +20,72 @@ export default function ReportDetailPage({
 }) {
   const [report, setReport] = useState<ReportResponse["report"] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const latestReportIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
+    const rid = String(params.reportId || "").trim();
+
+    if (!rid || rid === "undefined" || rid === "null") {
+      return () => {
+        isMounted = false;
+        controller.abort();
+      };
+    }
+
+    const isValidReportId =
+      /^REP-rec[a-zA-Z0-9]+$/.test(rid) || /^rec[a-zA-Z0-9]+$/.test(rid);
+
+    if (!isValidReportId) {
+      return () => {
+        isMounted = false;
+        controller.abort();
+      };
+    }
+
+    latestReportIdRef.current = rid;
 
     const fetchReport = async () => {
+      setStatus("loading");
       setError(null);
       try {
         const response = await fetch(
-          `/api/admin/reports/${encodeURIComponent(params.reportId)}`,
+          `/api/admin/reports/${encodeURIComponent(rid)}`,
           { signal: controller.signal },
         );
         const data = (await response.json()) as ReportResponse;
         if (!isMounted) {
           return;
         }
-        if (!data.ok) {
-          setError(data.error ?? "Unable to load report");
+        if (latestReportIdRef.current !== rid) {
           return;
         }
-        setReport(data.report ?? null);
+        if (!data.ok) {
+          if (!isValidReportId) {
+            return;
+          }
+          setError(data.error ?? "Unable to load report");
+          setStatus("error");
+          return;
+        }
+        if (!data.report) {
+          setError("Report not found");
+          setStatus("error");
+          setReport(null);
+          return;
+        }
+        setReport(data.report);
+        setStatus("ready");
       } catch (err) {
-        if (isMounted && !controller.signal.aborted) {
+        if (
+          isMounted &&
+          !controller.signal.aborted &&
+          latestReportIdRef.current === rid
+        ) {
           setError("Unable to load report");
+          setStatus("error");
         }
       }
     };
@@ -71,14 +113,17 @@ export default function ReportDetailPage({
         </Link>
       </div>
 
-      {error ? (
+      {status === "error" && error ? (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       ) : null}
 
       <div className="rounded-xl border border-slate-200 bg-white p-6">
-        {report ? (
+        {status === "loading" ? (
+          <p className="text-sm text-slate-500">Loading report details...</p>
+        ) : null}
+        {status === "ready" && report ? (
           <div className="space-y-4 text-sm text-slate-700">
             <div>
               <p className="text-xs font-semibold uppercase text-slate-400">Fields</p>
@@ -90,9 +135,7 @@ export default function ReportDetailPage({
               Created: {report.createdTime ?? "Unknown"}
             </div>
           </div>
-        ) : (
-          <p className="text-sm text-slate-500">Loading report details...</p>
-        )}
+        ) : null}
       </div>
     </section>
   );
