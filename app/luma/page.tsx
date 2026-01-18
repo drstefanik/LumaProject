@@ -1233,7 +1233,7 @@ export default function LumaSpeakingTestPage() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Date of birth
+                    Date of birth *
                   </label>
                   <input
                     type="date"
@@ -1256,7 +1256,7 @@ export default function LumaSpeakingTestPage() {
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
-                    Country
+                    Country *
                   </label>
                   <input
                     className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
