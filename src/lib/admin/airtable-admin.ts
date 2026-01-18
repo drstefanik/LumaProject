@@ -46,6 +46,10 @@ type ReportFields = {
 };
 
 type ReportListItem = {
+  id: string;
+  fields: {
+    ReportID?: string;
+  };
   reportId: string;
   candidateEmail: string | null;
   cefrLevel: string | null;
@@ -341,6 +345,10 @@ export async function listReports(params: {
         : record.id;
 
     return {
+      id: record.id,
+      fields: {
+        ReportID: record.fields.ReportID,
+      },
       reportId,
       candidateEmail: record.fields.CandidateEmail ?? null,
       cefrLevel: record.fields.CEFR_Level ?? null,
@@ -354,6 +362,33 @@ export async function listReports(params: {
   });
 
   return { items, total, page, pageSize };
+}
+
+export async function getReportByRecordId(tableName: string, recordId: string) {
+  const response = await fetch(`${getTableUrl(tableName)}/${recordId}`, {
+    headers: getHeaders(),
+    cache: "no-store",
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Airtable request failed: ${response.status} ${errorText}`);
+  }
+
+  return (await response.json()) as AirtableRecord<ReportFields>;
+}
+
+export async function getFirstReportByFormula(tableName: string, formula: string) {
+  const params = new URLSearchParams();
+  params.set("maxRecords", "1");
+  params.set("filterByFormula", formula);
+
+  const data = await fetchAirtable<ReportFields>(tableName, params);
+  return data.records[0] ?? null;
 }
 
 export async function getReportByReportID(reportId: string) {

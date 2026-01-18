@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { getReportByReportID } from "@/src/lib/admin/airtable-admin";
+import {
+  getFirstReportByFormula,
+  getReportByRecordId,
+} from "@/src/lib/admin/airtable-admin";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
 
 export async function GET(
@@ -13,7 +16,21 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const report = await getReportByReportID(reportId);
+  const tableName =
+    process.env.LUMA_REPORTS_TABLE || process.env.AIRTABLE_TABLE_REPORTS;
+
+  if (!tableName) {
+    throw new Error("LUMA_REPORTS_TABLE is missing.");
+  }
+
+  let report = null;
+  if (reportId.startsWith("rec")) {
+    report = await getReportByRecordId(tableName, reportId);
+  } else {
+    const sanitized = reportId.replace(/'/g, "\\'");
+    report = await getFirstReportByFormula(tableName, `{ReportID}='${sanitized}'`);
+  }
+
   if (!report) {
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
