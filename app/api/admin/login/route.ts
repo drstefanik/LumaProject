@@ -1,15 +1,8 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
-import {
-  createAuditLog,
-  getAdminUserByEmail,
-} from "@/src/lib/admin/airtable-admin";
-import {
-  adminSessionCookieName,
-  getAdminSessionCookieOptions,
-  signAdminSession,
-} from "@/src/lib/admin/session";
+import { createAudit, getAdminByEmail } from "@/src/lib/admin/airtable-admin";
+import { setAdminSessionCookie } from "@/src/lib/admin/session";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -24,7 +17,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const adminRecord = await getAdminUserByEmail(email);
+  const adminRecord = await getAdminByEmail(email);
   const fields = adminRecord?.fields;
 
   if (!fields?.IsActive || !fields?.PasswordHash) {
@@ -43,19 +36,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = await signAdminSession({
+  const response = NextResponse.json({ ok: true });
+  await setAdminSessionCookie(response, {
     email: fields.Email ?? email,
     role: fields.Role ?? null,
   });
 
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(
-    adminSessionCookieName,
-    token,
-    getAdminSessionCookieOptions(),
-  );
-
-  await createAuditLog(fields.Email ?? email, "LOGIN");
+  await createAudit(fields.Email ?? email, "LOGIN");
 
   return response;
 }
