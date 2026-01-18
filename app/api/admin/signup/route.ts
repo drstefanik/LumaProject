@@ -52,13 +52,19 @@ export async function POST(request: Request) {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  await createAdmin({
+  const createResult = await createAdmin({
     email,
     passwordHash,
     role: invite.fields.Role ?? null,
     fullName,
     isActive: true,
   });
+  if (!createResult.ok) {
+    return NextResponse.json(
+      { ok: false, error: createResult.error },
+      { status: 500 },
+    );
+  }
 
   await markInviteUsed(invite.id);
   await createAudit(email, "ADMIN_CREATED");

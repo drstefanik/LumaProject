@@ -41,20 +41,27 @@ export async function POST(req: Request) {
     const password = crypto.randomBytes(12).toString("base64url"); // ~16 chars
     const passwordHash = await bcrypt.hash(password, 12);
 
-    await createAdmin({
+    const createResult = await createAdmin({
       email,
       passwordHash,
       role: "admin",
       isActive: true,
       fullName: "System Bootstrap",
     });
+    if (!createResult.ok) {
+      return NextResponse.json(
+        { ok: false, error: createResult.error },
+        { status: 500 },
+      );
+    }
 
     await createAudit(email, "BOOTSTRAP_ADMIN_CREATED");
 
     return NextResponse.json({ ok: true, email, password });
-  } catch (err: any) {
+  } catch (err) {
+    console.error("BOOTSTRAP_FATAL", err);
     return NextResponse.json(
-      { ok: false, error: "Internal error" },
+      { ok: false, error: "Internal error during bootstrap" },
       { status: 500 },
     );
   }
