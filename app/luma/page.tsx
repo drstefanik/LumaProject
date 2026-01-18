@@ -379,21 +379,31 @@ function SearchableSelect({
 
       <div className="relative">
         <input
-          ref={(node) => {
-            inputRef.current = node;
-            refs.setReference(node);
-          }}
-          className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
-          placeholder={placeholder}
-          value={query}
-          onChange={handleInputChange}
-          onFocus={() => !disabled && setIsOpen(true)}
-          onClick={() => !disabled && setIsOpen(true)}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
-          autoComplete="off"
-          {...getReferenceProps()}
-        />
+  ref={(node) => {
+    inputRef.current = node;
+    refs.setReference(node);
+  }}
+  className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
+  placeholder={placeholder}
+  value={query}
+  onChange={handleInputChange}
+  disabled={disabled}
+  autoComplete="off"
+  {...getReferenceProps({
+    onFocus: () => {
+      if (disabled) return;
+      setIsOpen(true);
+    },
+    onClick: () => {
+      if (disabled) return;
+      setIsOpen(true);
+    },
+    onKeyDown: (e) => {
+      handleKeyDown(e);
+    },
+  })}
+/>
+
 
         {showMenu &&
           typeof document !== "undefined" &&
