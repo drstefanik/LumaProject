@@ -338,27 +338,34 @@ export async function listReports(params: {
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
 
-  const items: ReportListItem[] = records.slice(start, end).map((record) => {
+  const items: ReportListItem[] = records.slice(start, end).flatMap((record) => {
+    const recordId = typeof record.id === "string" ? record.id.trim() : "";
+    if (!recordId) {
+      return [];
+    }
+
     const reportId =
       typeof record.fields.ReportID === "string" && record.fields.ReportID.trim()
         ? record.fields.ReportID.trim()
-        : record.id;
+        : recordId;
 
-    return {
-      id: record.id,
-      fields: {
-        ReportID: record.fields.ReportID,
+    return [
+      {
+        id: recordId,
+        fields: {
+          ReportID: record.fields.ReportID,
+        },
+        reportId,
+        candidateEmail: record.fields.CandidateEmail ?? null,
+        cefrLevel: record.fields.CEFR_Level ?? null,
+        accent: record.fields.Accent ?? null,
+        createdAt: record.fields.CreatedAt ?? record.createdTime ?? null,
+        pdfUrl: record.fields.PDFUrl ?? null,
+        pdfStatus: record.fields.PDFStatus ?? null,
+        pdfGeneratedAt: record.fields.PDFGeneratedAt ?? null,
+        examDate: record.fields.ExamDate ?? null,
       },
-      reportId,
-      candidateEmail: record.fields.CandidateEmail ?? null,
-      cefrLevel: record.fields.CEFR_Level ?? null,
-      accent: record.fields.Accent ?? null,
-      createdAt: record.fields.CreatedAt ?? record.createdTime ?? null,
-      pdfUrl: record.fields.PDFUrl ?? null,
-      pdfStatus: record.fields.PDFStatus ?? null,
-      pdfGeneratedAt: record.fields.PDFGeneratedAt ?? null,
-      examDate: record.fields.ExamDate ?? null,
-    };
+    ];
   });
 
   return { items, total, page, pageSize };
