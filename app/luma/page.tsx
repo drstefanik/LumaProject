@@ -1,7 +1,8 @@
 "use client";
 
 import type { ChangeEvent, KeyboardEvent } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
@@ -249,35 +250,69 @@ function SearchableSelect({
   const [query, setQuery] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Portal anchor position
+  const [menuPos, setMenuPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   useEffect(() => {
     setQuery(value);
   }, [value]);
 
+  const filteredOptions = useMemo(() => {
+    const q = query.toLowerCase();
+    return options.filter((opt) => opt.toLowerCase().includes(q));
+  }, [options, query]);
+
+  useEffect(() => {
+    if (highlightedIndex >= filteredOptions.length) setHighlightedIndex(0);
+  }, [filteredOptions.length, highlightedIndex]);
+
+  function updateMenuPosition() {
+    const el = inputRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setMenuPos({
+      top: rect.bottom + 6 + window.scrollY,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+    });
+  }
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateMenuPosition();
+
+    const onResize = () => updateMenuPosition();
+    // Capture scroll on window + containers
+    const onScroll = () => updateMenuPosition();
+
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      if (containerRef.current && !containerRef.current.contains(target)) {
         setIsOpen(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const filteredOptions = options.filter((opt) =>
-    opt.toLowerCase().includes(query.toLowerCase())
-  );
-
-  useEffect(() => {
-    if (highlightedIndex >= filteredOptions.length) {
-      setHighlightedIndex(0);
-    }
-  }, [filteredOptions.length, highlightedIndex]);
 
   function handleSelect(option: string) {
     setQuery(option);
@@ -289,7 +324,7 @@ function SearchableSelect({
     const newValue = e.target.value;
     setQuery(newValue);
     onChange(newValue);
-    setIsOpen(!disabled);
+    if (!disabled) setIsOpen(true);
     setHighlightedIndex(0);
   }
 
@@ -318,44 +353,72 @@ function SearchableSelect({
     }
   }
 
+  const menu =
+    isOpen && filteredOptions.length > 0 && menuPos
+      ? createPortal(
+          <div
+            className="fixed z-[9999]"
+            style={{
+              top: menuPos.top,
+              left: menuPos.left,
+              width: menuPos.width,
+            }}
+          >
+            <div className="overflow-hidden rounded-lg border border-white/10 bg-slate-900/95 shadow-lg shadow-black/50 backdrop-blur">
+              <ul className="max-h-52 overflow-y-auto text-xs text-slate-100">
+                {filteredOptions.map((option, idx) => (
+                  <li key={option}>
+                    <button
+                      type="button"
+                      className={`flex w-full items-start px-3 py-2 text-left transition hover:bg-white/10 ${
+                        idx === highlightedIndex ? "bg-white/10" : ""
+                      }`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleSelect(option)}
+                    >
+                      {option}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div className="flex flex-col gap-1" ref={containerRef}>
       <label className="text-[11px] uppercase tracking-wide text-slate-400">
         {label}
         {required ? " *" : ""}
       </label>
+
       <div className="relative">
         <input
+          ref={inputRef}
           className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs outline-none ring-1 ring-transparent transition focus:border-sky-400/60 focus:ring-sky-500/40"
           placeholder={placeholder}
           value={query}
           onChange={handleInputChange}
-          onFocus={() => !disabled && setIsOpen(true)}
-          onClick={() => !disabled && setIsOpen(true)}
+          onFocus={() => {
+            if (disabled) return;
+            setIsOpen(true);
+            // next tick to ensure layout ready
+            requestAnimationFrame(() => updateMenuPosition());
+          }}
+          onClick={() => {
+            if (disabled) return;
+            setIsOpen(true);
+            requestAnimationFrame(() => updateMenuPosition());
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
+          autoComplete="off"
         />
 
-        {isOpen && filteredOptions.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-slate-900/90 shadow-lg shadow-black/40">
-            <ul className="max-h-52 overflow-y-auto text-xs text-slate-100">
-              {filteredOptions.map((option, idx) => (
-                <li key={option}>
-                  <button
-                    type="button"
-                    className={`flex w-full items-start px-3 py-2 text-left transition hover:bg-white/10 ${
-                      idx === highlightedIndex ? "bg-white/10" : ""
-                    }`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleSelect(option)}
-                  >
-                    {option}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Portal menu (prevents being hidden by anything below) */}
+        {menu}
       </div>
     </div>
   );
@@ -608,42 +671,39 @@ export default function LumaSpeakingTestPage() {
       const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
 
-const sessionInstructions = (() => {
-  const contextLines: string[] = [
-    `The candidate's name is "${candidateFullName}".`,
-  ];
+      const sessionInstructions = (() => {
+        const contextLines: string[] = [
+          `The candidate's name is "${candidateFullName}".`,
+        ];
 
-  if (nativeLanguage) {
-    contextLines.push(
-      `The candidate's native language is ${nativeLanguage}.`
-    );
-  }
+        if (nativeLanguage) {
+          contextLines.push(`The candidate's native language is ${nativeLanguage}.`);
+        }
 
-  if (country) {
-    contextLines.push(`The candidate is currently in ${country}.`);
-  }
+        if (country) {
+          contextLines.push(`The candidate is currently in ${country}.`);
+        }
 
-  if (testPurpose) {
-    contextLines.push(`The purpose of this test is: ${testPurpose}.`);
-  }
+        if (testPurpose) {
+          contextLines.push(`The purpose of this test is: ${testPurpose}.`);
+        }
 
-  return [
-    "You are LUMA, the official speaking examiner for British Institutes.",
-    "Your role is EXAMINER ONLY: you MUST NOT act as a tutor, coach, or conversation partner.",
-    "Do NOT teach, correct, drill, or propose practice activities. Do NOT say things like 'let me help you', 'let's practice', or 'how can I assist you today'.",
-    "This is a formal A1–C2 speaking test. You lead the test with exam-style questions in English only.",
-    "Structure the test in three short parts: (1) warm-up about personal background, (2) questions about study/work/daily life, (3) slightly extended questions about plans, opinions or experiences.",
-    "Ask clear, simple questions and short follow-up questions. Give the candidate most of the talking time.",
-    "VERY IMPORTANT: During the test you must NEVER give feedback, advice, or an opinion about the candidate's level or performance.",
-    "Never mention CEFR levels, scores, 'beginner/intermediate/advanced', accent quality, or how well they did.",
-    "If the candidate asks for feedback or a score, reply briefly: 'I’m not allowed to give feedback during the test. The result will be provided separately.' and then continue with the next exam question.",
-    "You will later be asked by the system to produce a JSON evaluation. Do NOT talk about this with the candidate.",
-    "You must always speak in English.",
-    ...contextLines,
-    "Keep the conversation flowing naturally and encourage the candidate to answer in full sentences.",
-  ].join("\n");
-})();
-
+        return [
+          "You are LUMA, the official speaking examiner for British Institutes.",
+          "Your role is EXAMINER ONLY: you MUST NOT act as a tutor, coach, or conversation partner.",
+          "Do NOT teach, correct, drill, or propose practice activities. Do NOT say things like 'let me help you', 'let's practice', or 'how can I assist you today'.",
+          "This is a formal A1–C2 speaking test. You lead the test with exam-style questions in English only.",
+          "Structure the test in three short parts: (1) warm-up about personal background, (2) questions about study/work/daily life, (3) slightly extended questions about plans, opinions or experiences.",
+          "Ask clear, simple questions and short follow-up questions. Give the candidate most of the talking time.",
+          "VERY IMPORTANT: During the test you must NEVER give feedback, advice, or an opinion about the candidate's level or performance.",
+          "Never mention CEFR levels, scores, 'beginner/intermediate/advanced', accent quality, or how well they did.",
+          "If the candidate asks for feedback or a score, reply briefly: 'I’m not allowed to give feedback during the test. The result will be provided separately.' and then continue with the next exam question.",
+          "You will later be asked by the system to produce a JSON evaluation. Do NOT talk about this with the candidate.",
+          "You must always speak in English.",
+          ...contextLines,
+          "Keep the conversation flowing naturally and encourage the candidate to answer in full sentences.",
+        ].join("\n");
+      })();
 
       dc.onopen = () => {
         appendLog("Data channel open. Configuring LUMA session...");
@@ -657,33 +717,30 @@ const sessionInstructions = (() => {
             model: REALTIME_MODEL,
             instructions: sessionInstructions,
             // VAD meno sensibile per non tagliare le domande
-turn_detection: {
-  type: "server",
-  threshold: 0.6,   // prima 0.75: troppo sensibile, tagliava le frasi
-  silence_ms: 1600, // un po' più di silenzio prima di chiudere il turno
-},
+            turn_detection: {
+              type: "server",
+              threshold: 0.6,
+              silence_ms: 1600,
+            },
           },
         } as const;
 
-        // non forziamo un testo specifico, lasciamo che segua le instructions
-const greetingEvent = {
-  type: "response.create",
-  response: {
-    metadata: { purpose: "initial_greeting" },
-    instructions:
-      "Start the speaking exam now. Use ONLY English. " +
-      "Use a formal, examiner-like tone. " +
-      "Do NOT say 'How can I help you?', 'How can I assist you?', 'What would you like to practice?' or anything similar. " +
-      "Follow this exact script:\n" +
-      "1) Greet the candidate: 'Good afternoon. My name is LUMA and I will be your speaking examiner today.'\n" +
-      "2) Ask: 'Could you tell me your full name, please?'\n" +
-      "3) After the answer, ask: 'Thank you. Could you spell your family name, please?'\n" +
-      "4) Then ask: 'Do you work, or are you a student?'\n" +
-      "5) Depending on the answer, ask 2 or 3 short follow-up questions about their job or studies and then continue with everyday topics as described in the session instructions.",
-  },
-
+        const greetingEvent = {
+          type: "response.create",
+          response: {
+            metadata: { purpose: "initial_greeting" },
+            instructions:
+              "Start the speaking exam now. Use ONLY English. " +
+              "Use a formal, examiner-like tone. " +
+              "Do NOT say 'How can I help you?', 'How can I assist you?', 'What would you like to practice?' or anything similar. " +
+              "Follow this exact script:\n" +
+              "1) Greet the candidate: 'Good afternoon. My name is LUMA and I will be your speaking examiner today.'\n" +
+              "2) Ask: 'Could you tell me your full name, please?'\n" +
+              "3) After the answer, ask: 'Thank you. Could you spell your family name, please?'\n" +
+              "4) Then ask: 'Do you work, or are you a student?'\n" +
+              "5) Depending on the answer, ask 2 or 3 short follow-up questions about their job or studies and then continue with everyday topics as described in the session instructions.",
+          },
         } as const;
-
 
         dc.send(JSON.stringify(sessionUpdate));
         dc.send(JSON.stringify(greetingEvent));
@@ -697,7 +754,6 @@ const greetingEvent = {
             console.log("[LUMA evaluating] event:", message);
           }
 
-          // error esplicito dal realtime
           if (message.type === "error") {
             console.error("[LUMA realtime error]", message.error || message);
             appendLog(
@@ -709,7 +765,6 @@ const greetingEvent = {
             return;
           }
 
-          // eventi audio che ignoriamo
           if (
             message.type === "input_audio_buffer.append" ||
             message.type === "input_audio_buffer.speech_started" ||
@@ -732,7 +787,6 @@ const greetingEvent = {
             return;
           }
 
-          // traccia purpose delle risposte
           if (message.type === "response.created" && message.response?.id) {
             const purpose = message.response.metadata?.purpose as
               | string
@@ -785,7 +839,6 @@ const greetingEvent = {
           const isEvaluatingReport =
             statusRef.current === "evaluating" && isReportResponse;
 
-          // accumula qualsiasi testo durante la valutazione
           if (
             isEvaluatingReport &&
             (message.type === "response.output_text.delta" ||
@@ -808,7 +861,6 @@ const greetingEvent = {
             ) {
               chunk = message.content[0].text;
             } else if (typeof message.part?.text === "string") {
-              // per response.content_part.added
               chunk = message.part.text;
             }
 
@@ -822,7 +874,6 @@ const greetingEvent = {
             return;
           }
 
-          // fine della risposta di valutazione – qui chiamiamo SEMPRE processFinalReport
           if (message.type === "response.done") {
             const isEvalDone =
               statusRef.current === "evaluating" && isReportResponse;
@@ -841,7 +892,6 @@ const greetingEvent = {
             return;
           }
 
-          // output testuale normale durante la conversazione
           if (message.type === "response.text.delta") {
             const purpose = responseMetadataRef.current[message.response_id];
             if (!firstModelOutputLogged) {
@@ -860,7 +910,6 @@ const greetingEvent = {
             const purpose = responseMetadataRef.current[message.response_id];
             if (purpose === "speaking_report") {
               evaluationBufferRef.current += message.text ?? "";
-              // non chiamiamo qui processFinalReport, aspettiamo response.done
             } else if (message.text?.trim()) {
               appendLog(`LUMA: ${message.text}`);
             }
@@ -925,15 +974,14 @@ const greetingEvent = {
     reportResponseIdRef.current = null;
     appendLog("Requesting final written evaluation from LUMA...");
 
-const instructions =
-  "You are an English speaking examiner. " +
-  "The user has just completed a speaking test. " +
-  "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
-  "You must NOT produce any spoken feedback, summary, or explanation for the candidate. " +
-  "You are writing for the examiner's backend system only, not for the candidate. " +
-  "Return ONLY valid JSON, with no extra text, using this exact schema: " +
-  '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
-
+    const instructions =
+      "You are an English speaking examiner. " +
+      "The user has just completed a speaking test. " +
+      "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
+      "You must NOT produce any spoken feedback, summary, or explanation for the candidate. " +
+      "You are writing for the examiner's backend system only, not for the candidate. " +
+      "Return ONLY valid JSON, with no extra text, using this exact schema: " +
+      '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
 
     const event = {
       type: "response.create",
@@ -1072,7 +1120,7 @@ const instructions =
         <div className="absolute -right-20 top-10 h-72 w-72 rounded-full bg-teal-400/25 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-6 py-12 space-y-8">
+      <div className="relative mx-auto max-w-6xl space-y-8 px-6 py-12">
         <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-sky-100 ring-1 ring-white/15">
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
           British Institutes · Speaking Examiner
@@ -1177,6 +1225,7 @@ const instructions =
                     disabled={!isIdle}
                   />
                 </div>
+
                 <SearchableSelect
                   label="Native language"
                   value={nativeLanguage}
@@ -1186,6 +1235,7 @@ const instructions =
                   required
                   disabled={!isIdle}
                 />
+
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] uppercase tracking-wide text-slate-400">
                     Country
