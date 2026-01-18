@@ -339,7 +339,7 @@ function SearchableSelect({
     if (!disabled) setIsOpen(true);
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(e: KeyboardEvent<Element>) {
     if (disabled) return;
 
     if (e.key === "ArrowDown") {
