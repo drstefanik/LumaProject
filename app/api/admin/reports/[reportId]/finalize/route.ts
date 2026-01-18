@@ -11,8 +11,9 @@ import {
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { reportId: string } },
+  { params }: { params: Promise<{ reportId: string }> },
 ) {
+  const { reportId } = await params;
   const cookieHeader = request.headers.get("cookie") ?? "";
   const tokenMatch = cookieHeader
     .split(";")
@@ -25,7 +26,7 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const updated = await updateReportByReportId(params.reportId, {
+  const updated = await updateReportByReportId(reportId, {
     PDFStatus: "final",
   });
 
@@ -33,7 +34,7 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
 
-  await createAuditLog(session.email, "PDF_FINALIZE", params.reportId);
+  await createAuditLog(session.email, "PDF_FINALIZE", reportId);
 
   return NextResponse.json({ ok: true });
 }

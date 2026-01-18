@@ -8,8 +8,9 @@ import {
 
 export async function GET(
   request: Request,
-  { params }: { params: { reportId: string } },
+  { params }: { params: Promise<{ reportId: string }> },
 ) {
+  const { reportId } = await params;
   const cookieHeader = request.headers.get("cookie") ?? "";
   const tokenMatch = cookieHeader
     .split(";")
@@ -22,7 +23,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const report = await getReportByReportId(params.reportId);
+  const report = await getReportByReportId(reportId);
   if (!report) {
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
