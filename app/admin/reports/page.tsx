@@ -220,8 +220,12 @@ export default function AdminReportsPage() {
               </tr>
             ) : null}
             {items.map((item) => {
-              const reportKey = String(item.fields?.ReportID ?? "").trim() || item.id;
-              const canView = Boolean(reportKey);
+              const reportKey =
+                (item.reportId || item.fields?.ReportID || "").trim() || item.id;
+              const canView =
+                Boolean(reportKey) &&
+                reportKey !== "undefined" &&
+                reportKey !== "null";
 
               return (
                 <tr key={item.reportId} className="text-slate-700">
@@ -238,6 +242,7 @@ export default function AdminReportsPage() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-wrap justify-end gap-2">
                       <Link
+                        prefetch={false}
                         href={
                           canView
                             ? `/admin/reports/${encodeURIComponent(reportKey)}`

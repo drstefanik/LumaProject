@@ -26,19 +26,15 @@ export default function ReportDetailPage({
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
-    const rid = String(params.reportId || "").trim();
+    const raw = String(params.reportId ?? "").trim();
+    const rid = raw.startsWith("REP-") ? raw.slice(4) : raw;
 
-    if (!rid || rid === "undefined" || rid === "null") {
-      return () => {
-        isMounted = false;
-        controller.abort();
-      };
-    }
+    const isValidReportId = /^rec[a-zA-Z0-9]+$/.test(rid);
 
-    const isValidReportId =
-      /^REP-rec[a-zA-Z0-9]+$/.test(rid) || /^rec[a-zA-Z0-9]+$/.test(rid);
-
-    if (!isValidReportId) {
+    if (!rid || rid === "undefined" || rid === "null" || !isValidReportId) {
+      setReport(null);
+      setError("Invalid report id");
+      setStatus("error");
       return () => {
         isMounted = false;
         controller.abort();
@@ -63,9 +59,6 @@ export default function ReportDetailPage({
           return;
         }
         if (!data.ok) {
-          if (!isValidReportId) {
-            return;
-          }
           setError(data.error ?? "Unable to load report");
           setStatus("error");
           return;
