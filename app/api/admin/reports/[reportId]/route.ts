@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  getFirstReportByFormula,
-  getReportByRecordId,
-} from "@/src/lib/admin/airtable-admin";
+import { getFirstReportByFormula, getReportByRecordId } from "@/src/lib/admin/airtable-admin";
 import { normalizeReportId } from "@/src/lib/admin/report-id";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
 
@@ -22,12 +19,17 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const tableName =
-    process.env.LUMA_REPORTS_TABLE || process.env.AIRTABLE_TABLE_REPORTS;
+  const tableName = process.env.LUMA_REPORTS_TABLE;
 
   if (!tableName) {
     throw new Error("LUMA_REPORTS_TABLE is missing.");
   }
+
+  console.log("[admin report detail] lookup", {
+    baseId: process.env.AIRTABLE_BASE_ID ?? null,
+    tableName,
+    recordId: normalized,
+  });
 
   let report = null;
   if (isRecordId) {
