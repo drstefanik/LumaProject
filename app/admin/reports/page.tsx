@@ -264,7 +264,7 @@ export default function AdminReportsPage() {
             {items.map((item) => {
               const reportId = item.reportId?.trim() ?? "";
               const recordId = item.recordId?.trim() ?? "";
-              const viewId = reportId || recordId;
+              const viewId = recordId || reportId;;
               const canView = Boolean(viewId);
 
               return (
