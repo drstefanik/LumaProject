@@ -4,6 +4,7 @@ import {
   getFirstReportByFormula,
   getReportByRecordId,
 } from "@/src/lib/admin/airtable-admin";
+import { classifyReportId, normalizeReportId } from "@/src/lib/admin/report-id";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
 
 export async function GET(
@@ -11,17 +12,23 @@ export async function GET(
   { params }: { params: Promise<{ reportId: string }> },
 ) {
   const { reportId } = await params;
-  const raw = String(reportId ?? "").trim();
-  const rid = decodeURIComponent(raw);
+  const raw = normalizeReportId(reportId);
+  const decoded = decodeURIComponent(raw);
+  const { kind, normalized } = classifyReportId(decoded);
 
-  if (!rid || rid === "undefined" || rid === "null") {
+  if (kind === "invalid") {
     return NextResponse.json(
       { ok: false, error: "Invalid report id" },
       { status: 400 },
     );
   }
 
-  console.log("[admin report detail] reportId raw:", reportId, "rid:", rid);
+  console.log(
+    "[admin report detail] reportId raw:",
+    reportId,
+    "rid:",
+    normalized,
+  );
   const session = await getAdminFromRequest(request);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -35,10 +42,10 @@ export async function GET(
   }
 
   let report = null;
-  if (rid.startsWith("rec")) {
-    report = await getReportByRecordId(tableName, rid);
-  } else {
-    const sanitized = rid.replace(/"/g, "\\\"");
+  if (kind === "airtableRecordId") {
+    report = await getReportByRecordId(tableName, normalized);
+  } else if (kind === "reportId") {
+    const sanitized = normalized.replace(/"/g, "\\\"");
     report = await getFirstReportByFormula(
       tableName,
       `{ReportID} = "${sanitized}"`,
@@ -48,7 +55,7 @@ export async function GET(
   if (!report) {
     console.log(
       "[admin report detail] NOT FOUND rid:",
-      rid,
+      normalized,
       "table:",
       tableName,
     );
