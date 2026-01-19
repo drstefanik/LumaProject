@@ -4,11 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ReportListItem = {
-  id: string;
-  fields: {
-    ReportID?: string;
-  };
-  reportId: string;
+  recordId: string;
+  reportId: string | null;
   candidateEmail: string | null;
   cefrLevel: string | null;
   accent: string | null;
@@ -128,13 +125,22 @@ export default function AdminReportsPage() {
           method: "POST",
         },
       );
+      const contentType = response.headers.get("content-type") ?? "";
+      if (contentType.includes("application/pdf")) {
+        const pdfBlob = await response.blob();
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl, "_blank", "noopener,noreferrer");
+        setActionMessage("PDF generated. Opening preview.");
+        return;
+      }
+
       const data = await response.json();
       if (data.ok) {
         setActionMessage("PDF generated successfully.");
         if (data.pdfUrl) {
           setItems((prev) =>
             prev.map((item) =>
-              item.reportId === reportId
+              item.reportId === reportId || item.recordId === reportId
                 ? {
                     ...item,
                     pdfUrl: data.pdfUrl,
@@ -256,17 +262,15 @@ export default function AdminReportsPage() {
               </tr>
             ) : null}
             {items.map((item) => {
-              const reportKey =
-                (item.fields.ReportID || "").trim() || item.id.trim();
-              const canView =
-                Boolean(reportKey) &&
-                reportKey !== "undefined" &&
-                reportKey !== "null";
+              const reportId = item.reportId?.trim() ?? "";
+              const recordId = item.recordId?.trim() ?? "";
+              const viewId = reportId || recordId;
+              const canView = Boolean(viewId);
 
               return (
-                <tr key={item.id} className="text-slate-700">
+                <tr key={item.recordId} className="text-slate-700">
                   <td className="px-4 py-3 font-medium text-slate-900">
-                    {reportKey}
+                    {reportId || recordId || "—"}
                   </td>
                   <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
                   <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
@@ -281,7 +285,7 @@ export default function AdminReportsPage() {
                         prefetch={false}
                         href={
                           canView
-                            ? `/admin/reports/${encodeURIComponent(reportKey)}`
+                            ? `/admin/reports/${encodeURIComponent(viewId)}`
                             : "#"
                         }
                         aria-disabled={!canView}
@@ -295,8 +299,9 @@ export default function AdminReportsPage() {
                       </Link>
                       <button
                         type="button"
-                        onClick={() => handleGeneratePdf(reportKey)}
-                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                        onClick={() => handleGeneratePdf(viewId)}
+                        disabled={!canView}
+                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Generate PDF
                       </button>

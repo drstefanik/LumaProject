@@ -46,11 +46,8 @@ type ReportFields = {
 };
 
 type ReportListItem = {
-  id: string;
-  fields: {
-    ReportID?: string;
-  };
-  reportId: string;
+  recordId: string;
+  reportId: string | null;
   candidateEmail: string | null;
   cefrLevel: string | null;
   accent: string | null;
@@ -347,14 +344,11 @@ export async function listReports(params: {
     const reportId =
       typeof record.fields.ReportID === "string" && record.fields.ReportID.trim()
         ? record.fields.ReportID.trim()
-        : recordId;
+        : null;
 
     return [
       {
-        id: recordId,
-        fields: {
-          ReportID: record.fields.ReportID,
-        },
+        recordId,
         reportId,
         candidateEmail: record.fields.CandidateEmail ?? null,
         cefrLevel: record.fields.CEFR_Level ?? null,

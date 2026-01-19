@@ -1,7 +1,6 @@
 export type ReportIdKind = "airtableRecordId" | "reportId" | "invalid";
 
-const AIRTABLE_RECORD_ID_REGEX = /^rec[a-zA-Z0-9]{10,}$/;
-const REPORT_ID_REGEX = /^REP-[A-Za-z0-9_-]+$/;
+const AIRTABLE_RECORD_ID_PREFIX = "rec";
 const INVALID_VALUES = new Set(["", "undefined", "null"]);
 
 export function normalizeReportId(input: unknown): string {
@@ -18,12 +17,8 @@ export function classifyReportId(id: string): {
     return { kind: "invalid", normalized };
   }
 
-  if (AIRTABLE_RECORD_ID_REGEX.test(normalized)) {
+  if (normalized.startsWith(AIRTABLE_RECORD_ID_PREFIX)) {
     return { kind: "airtableRecordId", normalized };
-  }
-
-  if (REPORT_ID_REGEX.test(normalized)) {
-    return { kind: "reportId", normalized };
   }
 
   return { kind: "reportId", normalized };
