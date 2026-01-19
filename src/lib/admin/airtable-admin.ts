@@ -332,6 +332,13 @@ export async function listReports(params: {
   queryParams.append("fields[]", "EmailKeyNormalized");
 
   const records = await fetchAllRecords<ReportFields>(tableName, queryParams);
+  if (records.length > 0) {
+    const firstRecord = records[0];
+    console.log("[admin reports list] sample ids", {
+      recordId: firstRecord.id,
+      reportId: firstRecord.fields.ReportID ?? null,
+    });
+  }
   console.log("[admin reports list] lookup", {
     baseId: baseId ?? null,
     tableName,
