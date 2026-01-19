@@ -114,6 +114,20 @@ export default function AdminReportsPage() {
       const data = await response.json();
       if (data.ok) {
         setActionMessage("PDF generation requested.");
+        if (data.pdfUrl) {
+          setItems((prev) =>
+            prev.map((item) =>
+              item.reportId === reportId
+                ? {
+                    ...item,
+                    pdfUrl: data.pdfUrl,
+                    pdfStatus: data.pdfStatus ?? item.pdfStatus,
+                    pdfGeneratedAt: data.pdfGeneratedAt ?? item.pdfGeneratedAt,
+                  }
+                : item,
+            ),
+          );
+        }
       } else {
         setActionMessage(data.error ?? "PDF generation not available.");
       }
@@ -220,11 +234,11 @@ export default function AdminReportsPage() {
               </tr>
             ) : null}
             {items.map((item) => {
-              const recordId = (item.reportId || "").trim();
+              const reportKey = (item.reportId || "").trim() || item.id.trim();
               const canView =
-                Boolean(recordId) &&
-                recordId !== "undefined" &&
-                recordId !== "null";
+                Boolean(reportKey) &&
+                reportKey !== "undefined" &&
+                reportKey !== "null";
 
               return (
                 <tr key={item.reportId} className="text-slate-700">
@@ -244,7 +258,7 @@ export default function AdminReportsPage() {
                         prefetch={false}
                         href={
                           canView
-                            ? `/admin/reports/${encodeURIComponent(recordId)}`
+                            ? `/admin/reports/${encodeURIComponent(reportKey)}`
                             : "#"
                         }
                         aria-disabled={!canView}

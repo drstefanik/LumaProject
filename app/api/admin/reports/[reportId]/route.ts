@@ -13,10 +13,8 @@ export async function GET(
   const { reportId } = await params;
   const raw = String(reportId ?? "").trim();
   const rid = decodeURIComponent(raw);
-  const isValid =
-    /^rec[a-zA-Z0-9]{10,}$/.test(rid) || /^REP-rec[a-zA-Z0-9]{10,}$/.test(rid);
 
-  if (!isValid) {
+  if (!rid || rid === "undefined" || rid === "null") {
     return NextResponse.json(
       { ok: false, error: "Invalid report id" },
       { status: 400 },
@@ -40,8 +38,11 @@ export async function GET(
   if (rid.startsWith("rec")) {
     report = await getReportByRecordId(tableName, rid);
   } else {
-    const sanitized = rid.replace(/'/g, "\\'");
-    report = await getFirstReportByFormula(tableName, `{ReportID}='${sanitized}'`);
+    const sanitized = rid.replace(/"/g, "\\\"");
+    report = await getFirstReportByFormula(
+      tableName,
+      `{ReportID} = "${sanitized}"`,
+    );
   }
 
   if (!report) {
