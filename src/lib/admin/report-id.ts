@@ -1,10 +1,21 @@
 export type ReportIdKind = "airtableRecordId" | "reportId" | "invalid";
 
-const AIRTABLE_RECORD_ID_PREFIX = "rec";
 const INVALID_VALUES = new Set(["", "undefined", "null"]);
 
+const REC_RE = /^rec[a-zA-Z0-9]+$/;
+const REP_REC_RE = /^REP-rec[a-zA-Z0-9]+$/;
+
+// Se in futuro avrai un vero reportId tipo "RPT-123" o simili, aggiungi qui.
+const GENERIC_REPORT_RE = /^[A-Z]{2,5}-[a-zA-Z0-9-]+$/;
+
 export function normalizeReportId(input: unknown): string {
-  return String(input ?? "").trim();
+  // Decode “safe”: se non è url-encoded, non succede nulla.
+  const raw = String(input ?? "").trim();
+  try {
+    return decodeURIComponent(raw).trim();
+  } catch {
+    return raw;
+  }
 }
 
 export function classifyReportId(id: string): {
@@ -17,9 +28,20 @@ export function classifyReportId(id: string): {
     return { kind: "invalid", normalized };
   }
 
-  if (normalized.startsWith(AIRTABLE_RECORD_ID_PREFIX)) {
+  // recordId Airtable diretto
+  if (REC_RE.test(normalized)) {
     return { kind: "airtableRecordId", normalized };
   }
 
-  return { kind: "reportId", normalized };
+  // alias REP-recXXXX → normalizza a recordId recXXXX
+  if (REP_REC_RE.test(normalized)) {
+    return { kind: "airtableRecordId", normalized: normalized.slice(4) };
+  }
+
+  // fallback: se vuoi supportare davvero reportId “non-rec”
+  if (GENERIC_REPORT_RE.test(normalized)) {
+    return { kind: "reportId", normalized };
+  }
+
+  return { kind: "invalid", normalized };
 }
