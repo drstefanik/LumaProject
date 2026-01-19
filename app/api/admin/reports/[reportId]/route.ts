@@ -13,6 +13,8 @@ export async function GET(
   const normalized = decoded.trim();
   const isRecordId = normalized.startsWith("rec");
   const isReportCode = normalized.startsWith("REP-");
+  const idType = isRecordId ? "rec" : isReportCode ? "REP-" : "other";
+  const reportIdField = "{ReportID}";
 
   const session = await getAdminFromRequest(request);
   if (!session) {
@@ -25,21 +27,65 @@ export async function GET(
     throw new Error("LUMA_REPORTS_TABLE is missing.");
   }
 
-  console.log("[admin report detail] lookup", {
-    baseId: process.env.AIRTABLE_BASE_ID ?? null,
-    tableName,
-    recordId: normalized,
-  });
+  const logLookup = (details: {
+    lookup: number;
+    method: "get-by-id" | "filterByFormula";
+    foundCount: number;
+    formula?: string | null;
+  }) => {
+    console.log("[admin report detail] lookup", {
+      baseId: process.env.AIRTABLE_BASE_ID ?? null,
+      tableName,
+      idRequested: normalized,
+      idType,
+      lookup: details.lookup,
+      method: details.method,
+      foundCount: details.foundCount,
+      formula: details.formula ?? null,
+      field: details.formula ? reportIdField : null,
+    });
+  };
 
   let report = null;
   if (isRecordId) {
     report = await getReportByRecordId(tableName, normalized);
+    logLookup({
+      lookup: 1,
+      method: "get-by-id",
+      foundCount: report ? 1 : 0,
+    });
+
+    if (!report) {
+      const formula = `${reportIdField} = "REP-${normalized}"`;
+      report = await getFirstReportByFormula(tableName, formula);
+      logLookup({
+        lookup: 2,
+        method: "filterByFormula",
+        foundCount: report ? 1 : 0,
+        formula,
+      });
+    }
+
+    if (!report) {
+      const formula = `${reportIdField} = "${normalized}"`;
+      report = await getFirstReportByFormula(tableName, formula);
+      logLookup({
+        lookup: 3,
+        method: "filterByFormula",
+        foundCount: report ? 1 : 0,
+        formula,
+      });
+    }
   } else if (isReportCode) {
     const sanitized = normalized.replace(/"/g, "\\\"");
-    report = await getFirstReportByFormula(
-      tableName,
-      `{ReportID} = "${sanitized}"`,
-    );
+    const formula = `${reportIdField} = "${sanitized}"`;
+    report = await getFirstReportByFormula(tableName, formula);
+    logLookup({
+      lookup: 1,
+      method: "filterByFormula",
+      foundCount: report ? 1 : 0,
+      formula,
+    });
   } else {
     return NextResponse.json(
       { ok: false, error: "Invalid report id" },

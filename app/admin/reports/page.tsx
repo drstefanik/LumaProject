@@ -255,7 +255,8 @@ export default function AdminReportsPage() {
             {items.map((item) => {
               const reportId = item.reportId?.trim() ?? "";
               const recordId = item.recordId?.trim() ?? "";
-              const canView = Boolean(recordId);
+              const viewId = reportId || recordId;
+              const canView = Boolean(viewId);
 
               return (
                 <tr key={item.recordId} className="text-slate-700">
@@ -277,7 +278,7 @@ export default function AdminReportsPage() {
                         type="button"
                         onClick={() =>
                           router.push(
-                            `/admin/reports/${encodeURIComponent(recordId)}`,
+                            `/admin/reports/${encodeURIComponent(viewId)}`,
                           )
                         }
                         disabled={!canView}
