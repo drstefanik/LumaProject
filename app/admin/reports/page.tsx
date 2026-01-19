@@ -58,27 +58,18 @@ export default function AdminReportsPage() {
 
       try {
         const params = new URLSearchParams();
-        if (search.trim()) {
-          params.set("q", search.trim());
-        }
-        if (cefr) {
-          params.set("cefr", cefr);
-        }
-        if (status) {
-          params.set("status", status);
-        }
+        if (search.trim()) params.set("q", search.trim());
+        if (cefr) params.set("cefr", cefr);
+        if (status) params.set("status", status);
         params.set("page", String(page));
         params.set("pageSize", String(pageSize));
 
         const response = await fetch(`/api/admin/reports?${params.toString()}`, {
           signal,
         });
-
         const data = (await response.json()) as ReportsResponse;
 
-        if (signal.aborted) {
-          return;
-        }
+        if (signal.aborted) return;
 
         if (!data.ok) {
           setError(data.error ?? "Unable to load reports");
@@ -88,13 +79,9 @@ export default function AdminReportsPage() {
         setItems(data.items ?? []);
         setTotal(data.total ?? 0);
       } catch (err) {
-        if (!signal.aborted) {
-          setError("Unable to load reports");
-        }
+        if (!signal.aborted) setError("Unable to load reports");
       } finally {
-        if (!signal.aborted) {
-          setLoading(false);
-        }
+        if (!signal.aborted) setLoading(false);
       }
     },
     [search, cefr, status, page],
@@ -103,18 +90,14 @@ export default function AdminReportsPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    const runFetch = async () => {
-      await fetchReports({ signal: controller.signal });
-    };
-
-    runFetch();
+    fetchReports({ signal: controller.signal });
 
     return () => {
       controller.abort();
     };
   }, [fetchReports]);
 
-  // NOTE: this expects an Airtable recordId (recXXXXXXXXXXXXXXX)
+  // NOTE: expects an Airtable recordId (recXXXXXXXXXXXXXXX)
   const handleGeneratePdf = async (recordId: string) => {
     setActionMessage(null);
 
@@ -271,14 +254,7 @@ export default function AdminReportsPage() {
             {items.map((item) => {
               const reportId = item.reportId?.trim() ?? "";
               const recordId = item.recordId?.trim() ?? "";
-
-              // IMPORTANT:
-              // - use Airtable recordId for routing & actions (stable, unique)
-              // - show reportId in UI if present (human-friendly)
               const canView = Boolean(recordId);
-              const viewHref = canView
-                ? `/admin/reports/${encodeURIComponent(recordId)}`
-                : "#";
 
               return (
                 <tr key={item.recordId} className="text-slate-700">
@@ -298,12 +274,14 @@ export default function AdminReportsPage() {
                     <div className="flex flex-wrap justify-end gap-2">
                       <Link
                         prefetch={false}
-                        href={viewHref}
+                        href={
+                          `/admin/reports/${encodeURIComponent(recordId)}` as any
+                        }
                         aria-disabled={!canView}
                         className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition ${
                           canView
                             ? "border-slate-200 text-slate-700 hover:bg-slate-50"
-                            : "cursor-not-allowed border-slate-200 text-slate-400"
+                            : "cursor-not-allowed border-slate-200 text-slate-400 pointer-events-none"
                         }`}
                       >
                         View
