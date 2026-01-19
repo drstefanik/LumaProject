@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  classifyReportId,
-  normalizeReportId,
-} from "@/src/lib/admin/report-id";
+const INVALID_REPORT_IDS = new Set(["", "undefined", "null"]);
 
 type ReportResponse = {
   ok: boolean;
@@ -31,11 +28,9 @@ export default function ReportDetailPage({
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
-    const normalizedInput = normalizeReportId(params.reportId);
-    const decoded = decodeURIComponent(normalizedInput);
-    const { kind, normalized } = classifyReportId(decoded);
+    const normalized = String(params.reportId ?? "").trim();
 
-    if (kind === "invalid") {
+    if (INVALID_REPORT_IDS.has(normalized)) {
       setReport(null);
       setError("Invalid report id");
       setStatus("error");
