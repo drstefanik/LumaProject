@@ -15,6 +15,12 @@ type ReportResponse = {
   error?: string;
 };
 
+function normalizeReportId(input: string) {
+  const s = String(input ?? "").trim();
+  if (s.startsWith("REP-")) return s.slice(4);
+  return s;
+}
+
 export default function ReportDetailPage({
   params,
 }: {
@@ -28,9 +34,11 @@ export default function ReportDetailPage({
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
-    const normalized = String(params.reportId ?? "").trim();
 
-    if (INVALID_REPORT_IDS.has(normalized)) {
+    const raw = String(params.reportId ?? "").trim();
+    const effectiveId = normalizeReportId(raw);
+
+    if (INVALID_REPORT_IDS.has(effectiveId)) {
       setReport(null);
       setError("Invalid report id");
       setStatus("error");
@@ -40,41 +48,42 @@ export default function ReportDetailPage({
       };
     }
 
-    latestReportIdRef.current = normalized;
+    latestReportIdRef.current = effectiveId;
 
     const fetchReport = async () => {
       setStatus("loading");
       setError(null);
       try {
         const response = await fetch(
-          `/api/admin/reports/${encodeURIComponent(normalized)}`,
+          `/api/admin/reports/${encodeURIComponent(effectiveId)}`,
           { signal: controller.signal },
         );
+
         const data = (await response.json()) as ReportResponse;
-        if (!isMounted) {
-          return;
-        }
-        if (latestReportIdRef.current !== normalized) {
-          return;
-        }
+
+        if (!isMounted) return;
+        if (latestReportIdRef.current !== effectiveId) return;
+
         if (!data.ok) {
           setError(data.error ?? "Unable to load report");
           setStatus("error");
           return;
         }
+
         if (!data.report) {
           setError("Report not found");
           setStatus("error");
           setReport(null);
           return;
         }
+
         setReport(data.report);
         setStatus("ready");
       } catch (err) {
         if (
           isMounted &&
           !controller.signal.aborted &&
-          latestReportIdRef.current === normalized
+          latestReportIdRef.current === effectiveId
         ) {
           setError("Unable to load report");
           setStatus("error");
@@ -97,6 +106,7 @@ export default function ReportDetailPage({
           <h1 className="text-2xl font-semibold text-slate-900">Report Detail</h1>
           <p className="text-sm text-slate-500">Report ID: {params.reportId}</p>
         </div>
+
         <Link
           href="/admin/reports"
           className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -115,10 +125,13 @@ export default function ReportDetailPage({
         {status === "loading" ? (
           <p className="text-sm text-slate-500">Loading report details...</p>
         ) : null}
+
         {status === "ready" && report ? (
           <div className="space-y-4 text-sm text-slate-700">
             <div>
-              <p className="text-xs font-semibold uppercase text-slate-400">Fields</p>
+              <p className="text-xs font-semibold uppercase text-slate-400">
+                Fields
+              </p>
               <pre className="mt-2 overflow-x-auto rounded-md bg-slate-900 p-4 text-xs text-slate-100">
                 {JSON.stringify(report.fields, null, 2)}
               </pre>
