@@ -54,28 +54,6 @@ export async function GET(
       method: "get-by-id",
       foundCount: report ? 1 : 0,
     });
-
-    if (!report) {
-      const formula = `${reportIdField} = "REP-${normalized}"`;
-      report = await getFirstReportByFormula(tableName, formula);
-      logLookup({
-        lookup: 2,
-        method: "filterByFormula",
-        foundCount: report ? 1 : 0,
-        formula,
-      });
-    }
-
-    if (!report) {
-      const formula = `${reportIdField} = "${normalized}"`;
-      report = await getFirstReportByFormula(tableName, formula);
-      logLookup({
-        lookup: 3,
-        method: "filterByFormula",
-        foundCount: report ? 1 : 0,
-        formula,
-      });
-    }
   } else if (isReportCode) {
     const sanitized = normalized.replace(/"/g, "\\\"");
     const formula = `${reportIdField} = "${sanitized}"`;
