@@ -315,6 +315,7 @@ export async function listReports(params: {
   queryParams.set("pageSize", "100");
 
   const filterFormula = buildReportFilterFormula(params);
+  const lookupMethod = filterFormula ? "filterByFormula" : "list";
   if (filterFormula) {
     queryParams.set("filterByFormula", filterFormula);
   }
@@ -331,6 +332,14 @@ export async function listReports(params: {
   queryParams.append("fields[]", "EmailKeyNormalized");
 
   const records = await fetchAllRecords<ReportFields>(tableName, queryParams);
+  console.log("[admin reports list] lookup", {
+    baseId: baseId ?? null,
+    tableName,
+    idRequested: null,
+    idType: "list",
+    lookupMethod,
+    totalRecords: records.length,
+  });
   const total = records.length;
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
