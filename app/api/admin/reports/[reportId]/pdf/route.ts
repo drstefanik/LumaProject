@@ -16,7 +16,7 @@ import {
   getReportByRecordId,
   updateReportByRecordId,
 } from "@/src/lib/admin/airtable-admin";
-import { classifyReportId, normalizeReportId } from "@/src/lib/admin/report-id";
+import { normalizeReportId } from "@/src/lib/admin/report-id";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
 
 type ReportRecord = { id: string; fields: Record<string, unknown> };
@@ -194,16 +194,9 @@ export async function POST(
   }
 
   const { reportId } = await params;
-  const raw = normalizeReportId(reportId);
-  const decoded = decodeURIComponent(raw);
-  const { kind, normalized } = classifyReportId(decoded);
-
-  if (kind === "invalid") {
-    return NextResponse.json(
-      { ok: false, error: "invalid report id" },
-      { status: 400 },
-    );
-  }
+  const decoded = normalizeReportId(reportId);
+  const normalized = decoded.trim();
+  const isReportCode = normalized.startsWith("REP-");
 
   const tableName =
     process.env.LUMA_REPORTS_TABLE || process.env.AIRTABLE_TABLE_REPORTS;
@@ -213,14 +206,14 @@ export async function POST(
   }
 
   let report = null;
-  if (kind === "airtableRecordId") {
-    report = await getReportByRecordId(tableName, normalized);
-  } else if (kind === "reportId") {
+  if (isReportCode) {
     const sanitized = normalized.replace(/"/g, "\\\"");
     report = await getFirstReportByFormula(
       tableName,
       `{ReportID} = "${sanitized}"`,
     );
+  } else {
+    report = await getReportByRecordId(tableName, normalized);
   }
 
   if (!report) {

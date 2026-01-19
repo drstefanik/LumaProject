@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-const INVALID_REPORT_IDS = new Set(["", "undefined", "null"]);
 
 type ReportResponse = {
   ok: boolean;
@@ -14,12 +13,6 @@ type ReportResponse = {
   };
   error?: string;
 };
-
-function normalizeReportId(input: string) {
-  const s = String(input ?? "").trim();
-  if (s.startsWith("REP-")) return s.slice(4);
-  return s;
-}
 
 export default function ReportDetailPage({
   params,
@@ -35,19 +28,7 @@ export default function ReportDetailPage({
     let isMounted = true;
     const controller = new AbortController();
 
-    const raw = String(params.reportId ?? "").trim();
-    const effectiveId = normalizeReportId(raw);
-
-    if (INVALID_REPORT_IDS.has(effectiveId)) {
-      setReport(null);
-      setError("Invalid report id");
-      setStatus("error");
-      return () => {
-        isMounted = false;
-        controller.abort();
-      };
-    }
-
+    const effectiveId = String(params.reportId ?? "").trim();
     latestReportIdRef.current = effectiveId;
 
     const fetchReport = async () => {
