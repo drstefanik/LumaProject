@@ -26,24 +26,9 @@ export default function ReportDetailPage({
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
-    let rid = String(params.reportId || "").trim();
+    const rid = String(params.reportId || "").trim();
 
-    if (rid.startsWith("REP-")) {
-      rid = rid.replace(/^REP-/, "");
-    }
-
-    const isValidReportId =
-      /^rec[a-zA-Z0-9]+$/.test(rid) ||
-      /^recs[a-zA-Z0-9]+$/.test(rid) ||
-      /^REP-recs[a-zA-Z0-9]+$/.test(rid) ||
-      /^REP-rec[a-zA-Z0-9]+$/.test(rid);
-
-    if (
-      !rid ||
-      rid === "undefined" ||
-      rid === "null" ||
-      !isValidReportId
-    ) {
+    if (!rid || rid === "undefined" || rid === "null") {
       setReport(null);
       setError("Invalid report id");
       setStatus("error");

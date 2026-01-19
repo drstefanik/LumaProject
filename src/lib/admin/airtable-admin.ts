@@ -389,6 +389,25 @@ export async function getReportByRecordId(tableName: string, recordId: string) {
   return (await response.json()) as AirtableRecord<ReportFields>;
 }
 
+export async function updateReportByRecordId(
+  tableName: string,
+  recordId: string,
+  fields: Record<string, unknown>,
+) {
+  const response = await fetch(`${getTableUrl(tableName)}/${recordId}`, {
+    method: "PATCH",
+    headers: getHeaders(),
+    body: JSON.stringify({ fields }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Airtable update failed: ${response.status} ${errorText}`);
+  }
+
+  return (await response.json()) as AirtableRecord<ReportFields>;
+}
+
 export async function getFirstReportByFormula(tableName: string, formula: string) {
   const params = new URLSearchParams();
   params.set("maxRecords", "1");
