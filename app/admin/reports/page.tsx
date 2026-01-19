@@ -220,12 +220,11 @@ export default function AdminReportsPage() {
               </tr>
             ) : null}
             {items.map((item) => {
-              const reportKey =
-                (item.reportId || item.fields?.ReportID || "").trim() || item.id;
+              const recordId = (item.reportId || "").trim();
               const canView =
-                Boolean(reportKey) &&
-                reportKey !== "undefined" &&
-                reportKey !== "null";
+                Boolean(recordId) &&
+                recordId !== "undefined" &&
+                recordId !== "null";
 
               return (
                 <tr key={item.reportId} className="text-slate-700">
@@ -245,7 +244,7 @@ export default function AdminReportsPage() {
                         prefetch={false}
                         href={
                           canView
-                            ? `/admin/reports/${encodeURIComponent(reportKey)}`
+                            ? `/admin/reports/${encodeURIComponent(recordId)}`
                             : "#"
                         }
                         aria-disabled={!canView}
