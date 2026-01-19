@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  classifyReportId,
+  normalizeReportId,
+} from "@/src/lib/admin/report-id";
+
 type ReportResponse = {
   ok: boolean;
   report?: {
@@ -26,9 +31,11 @@ export default function ReportDetailPage({
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
-    const rid = String(params.reportId || "").trim();
+    const normalizedInput = normalizeReportId(params.reportId);
+    const decoded = decodeURIComponent(normalizedInput);
+    const { kind, normalized } = classifyReportId(decoded);
 
-    if (!rid || rid === "undefined" || rid === "null") {
+    if (kind === "invalid") {
       setReport(null);
       setError("Invalid report id");
       setStatus("error");
@@ -38,21 +45,21 @@ export default function ReportDetailPage({
       };
     }
 
-    latestReportIdRef.current = rid;
+    latestReportIdRef.current = normalized;
 
     const fetchReport = async () => {
       setStatus("loading");
       setError(null);
       try {
         const response = await fetch(
-          `/api/admin/reports/${encodeURIComponent(rid)}`,
+          `/api/admin/reports/${encodeURIComponent(normalized)}`,
           { signal: controller.signal },
         );
         const data = (await response.json()) as ReportResponse;
         if (!isMounted) {
           return;
         }
-        if (latestReportIdRef.current !== rid) {
+        if (latestReportIdRef.current !== normalized) {
           return;
         }
         if (!data.ok) {
@@ -72,7 +79,7 @@ export default function ReportDetailPage({
         if (
           isMounted &&
           !controller.signal.aborted &&
-          latestReportIdRef.current === rid
+          latestReportIdRef.current === normalized
         ) {
           setError("Unable to load report");
           setStatus("error");

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ReportListItem = {
   id: string;
@@ -45,14 +45,19 @@ export default function AdminReportsPage() {
     return Math.max(1, Math.ceil(total / pageSize));
   }, [total]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const controller = new AbortController();
-
-    const fetchReports = async () => {
+  const fetchReports = useCallback(
+    async ({
+      signal,
+      preserveActionMessage = false,
+    }: {
+      signal: AbortSignal;
+      preserveActionMessage?: boolean;
+    }) => {
       setLoading(true);
       setError(null);
-      setActionMessage(null);
+      if (!preserveActionMessage) {
+        setActionMessage(null);
+      }
 
       try {
         const params = new URLSearchParams();
@@ -68,14 +73,15 @@ export default function AdminReportsPage() {
         params.set("page", String(page));
         params.set("pageSize", String(pageSize));
 
-        const response = await fetch(`/api/admin/reports?${params.toString()}`,
+        const response = await fetch(
+          `/api/admin/reports?${params.toString()}`,
           {
-            signal: controller.signal,
+            signal,
           },
         );
         const data = (await response.json()) as ReportsResponse;
 
-        if (!isMounted) {
+        if (signal.aborted) {
           return;
         }
 
@@ -87,33 +93,44 @@ export default function AdminReportsPage() {
         setItems(data.items ?? []);
         setTotal(data.total ?? 0);
       } catch (err) {
-        if (isMounted && !controller.signal.aborted) {
+        if (!signal.aborted) {
           setError("Unable to load reports");
         }
       } finally {
-        if (isMounted) {
+        if (!signal.aborted) {
           setLoading(false);
         }
       }
+    },
+    [search, cefr, status, page],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const runFetch = async () => {
+      await fetchReports({ signal: controller.signal });
     };
 
-    fetchReports();
+    runFetch();
 
     return () => {
-      isMounted = false;
       controller.abort();
     };
-  }, [search, cefr, status, page]);
+  }, [fetchReports]);
 
   const handleGeneratePdf = async (reportId: string) => {
     setActionMessage(null);
     try {
-      const response = await fetch(`/api/admin/reports/${reportId}/pdf`, {
-        method: "POST",
-      });
+      const response = await fetch(
+        `/api/admin/reports/${encodeURIComponent(reportId)}/pdf`,
+        {
+          method: "POST",
+        },
+      );
       const data = await response.json();
       if (data.ok) {
-        setActionMessage("PDF generation requested.");
+        setActionMessage("PDF generated successfully.");
         if (data.pdfUrl) {
           setItems((prev) =>
             prev.map((item) =>
@@ -128,6 +145,11 @@ export default function AdminReportsPage() {
             ),
           );
         }
+        const controller = new AbortController();
+        await fetchReports({
+          signal: controller.signal,
+          preserveActionMessage: true,
+        });
       } else {
         setActionMessage(data.error ?? "PDF generation not available.");
       }
@@ -234,16 +256,17 @@ export default function AdminReportsPage() {
               </tr>
             ) : null}
             {items.map((item) => {
-              const reportKey = (item.reportId || "").trim() || item.id.trim();
+              const reportKey =
+                (item.fields.ReportID || "").trim() || item.id.trim();
               const canView =
                 Boolean(reportKey) &&
                 reportKey !== "undefined" &&
                 reportKey !== "null";
 
               return (
-                <tr key={item.reportId} className="text-slate-700">
+                <tr key={item.id} className="text-slate-700">
                   <td className="px-4 py-3 font-medium text-slate-900">
-                    {item.reportId}
+                    {reportKey}
                   </td>
                   <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
                   <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
@@ -272,7 +295,7 @@ export default function AdminReportsPage() {
                       </Link>
                       <button
                         type="button"
-                        onClick={() => handleGeneratePdf(item.reportId)}
+                        onClick={() => handleGeneratePdf(reportKey)}
                         className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         Generate PDF
