@@ -70,12 +70,10 @@ export default function AdminReportsPage() {
         params.set("page", String(page));
         params.set("pageSize", String(pageSize));
 
-        const response = await fetch(
-          `/api/admin/reports?${params.toString()}`,
-          {
-            signal,
-          },
-        );
+        const response = await fetch(`/api/admin/reports?${params.toString()}`, {
+          signal,
+        });
+
         const data = (await response.json()) as ReportsResponse;
 
         if (signal.aborted) {
@@ -116,15 +114,16 @@ export default function AdminReportsPage() {
     };
   }, [fetchReports]);
 
-  const handleGeneratePdf = async (reportId: string) => {
+  // NOTE: this expects an Airtable recordId (recXXXXXXXXXXXXXXX)
+  const handleGeneratePdf = async (recordId: string) => {
     setActionMessage(null);
+
     try {
       const response = await fetch(
-        `/api/admin/reports/${encodeURIComponent(reportId)}/pdf`,
-        {
-          method: "POST",
-        },
+        `/api/admin/reports/${encodeURIComponent(recordId)}/pdf`,
+        { method: "POST" },
       );
+
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType.includes("application/pdf")) {
         const pdfBlob = await response.blob();
@@ -135,12 +134,14 @@ export default function AdminReportsPage() {
       }
 
       const data = await response.json();
+
       if (data.ok) {
         setActionMessage("PDF generated successfully.");
+
         if (data.pdfUrl) {
           setItems((prev) =>
             prev.map((item) =>
-              item.reportId === reportId || item.recordId === reportId
+              item.recordId === recordId
                 ? {
                     ...item,
                     pdfUrl: data.pdfUrl,
@@ -151,6 +152,7 @@ export default function AdminReportsPage() {
             ),
           );
         }
+
         const controller = new AbortController();
         await fetchReports({
           signal: controller.signal,
@@ -187,6 +189,7 @@ export default function AdminReportsPage() {
               placeholder="john@example.com or RPT-123"
             />
           </label>
+
           <label className="flex flex-col text-sm font-medium text-slate-700">
             CEFR
             <select
@@ -206,6 +209,7 @@ export default function AdminReportsPage() {
               <option value="C2">C2</option>
             </select>
           </label>
+
           <label className="flex flex-col text-sm font-medium text-slate-700">
             PDF status
             <select
@@ -223,6 +227,7 @@ export default function AdminReportsPage() {
             </select>
           </label>
         </div>
+
         <div className="text-sm text-slate-500">
           {loading ? "Loading reports..." : `${total} total reports`}
         </div>
@@ -253,6 +258,7 @@ export default function AdminReportsPage() {
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
+
           <tbody className="divide-y divide-slate-100">
             {items.length === 0 && !loading ? (
               <tr>
@@ -261,11 +267,18 @@ export default function AdminReportsPage() {
                 </td>
               </tr>
             ) : null}
+
             {items.map((item) => {
               const reportId = item.reportId?.trim() ?? "";
               const recordId = item.recordId?.trim() ?? "";
-              const viewId = recordId || reportId;;
-              const canView = Boolean(viewId);
+
+              // IMPORTANT:
+              // - use Airtable recordId for routing & actions (stable, unique)
+              // - show reportId in UI if present (human-friendly)
+              const canView = Boolean(recordId);
+              const viewHref = canView
+                ? `/admin/reports/${encodeURIComponent(recordId)}`
+                : "#";
 
               return (
                 <tr key={item.recordId} className="text-slate-700">
@@ -276,18 +289,16 @@ export default function AdminReportsPage() {
                   <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
                   <td className="px-4 py-3">{item.accent ?? "—"}</td>
                   <td className="px-4 py-3">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
+                    {item.createdAt
+                      ? new Date(item.createdAt).toLocaleString()
+                      : "—"}
                   </td>
                   <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-wrap justify-end gap-2">
                       <Link
                         prefetch={false}
-                        href={
-                          canView
-                            ? `/admin/reports/${encodeURIComponent(viewId)}`
-                            : "#"
-                        }
+                        href={viewHref}
                         aria-disabled={!canView}
                         className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition ${
                           canView
@@ -297,14 +308,16 @@ export default function AdminReportsPage() {
                       >
                         View
                       </Link>
+
                       <button
                         type="button"
-                        onClick={() => handleGeneratePdf(viewId)}
+                        onClick={() => handleGeneratePdf(recordId)}
                         disabled={!canView}
                         className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Generate PDF
                       </button>
+
                       {item.pdfUrl ? (
                         <a
                           href={item.pdfUrl}
