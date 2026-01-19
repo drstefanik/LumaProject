@@ -18,7 +18,7 @@ export async function GET(
 
   if (kind === "invalid") {
     return NextResponse.json(
-      { ok: false, error: "Invalid report id" },
+      { ok: false, error: "invalid report id" },
       { status: 400 },
     );
   }

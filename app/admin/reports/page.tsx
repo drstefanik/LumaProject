@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ReportListItem = {
@@ -28,6 +28,7 @@ type ReportsResponse = {
 const pageSize = 20;
 
 export default function AdminReportsPage() {
+  const router = useRouter();
   const [items, setItems] = useState<ReportListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -272,20 +273,18 @@ export default function AdminReportsPage() {
                   <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-wrap justify-end gap-2">
-                      <Link
-                        prefetch={false}
-                        href={
-                          `/admin/reports/${encodeURIComponent(recordId)}` as any
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/admin/reports/${encodeURIComponent(recordId)}`,
+                          )
                         }
-                        aria-disabled={!canView}
-                        className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition ${
-                          canView
-                            ? "border-slate-200 text-slate-700 hover:bg-slate-50"
-                            : "cursor-not-allowed border-slate-200 text-slate-400 pointer-events-none"
-                        }`}
+                        disabled={!canView}
+                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                       >
                         View
-                      </Link>
+                      </button>
 
                       <button
                         type="button"
