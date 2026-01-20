@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-
 type ReportResponse = {
   ok: boolean;
   report?: {
@@ -12,6 +11,13 @@ type ReportResponse = {
     createdTime?: string;
   };
   error?: string;
+};
+
+type DebugState = {
+  url: string;
+  httpStatus: number | null;
+  contentType: string | null;
+  rawBodyPreview: string | null;
 };
 
 export default function ReportDetailPage({
@@ -23,6 +29,13 @@ export default function ReportDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const latestReportIdRef = useRef<string | null>(null);
+
+  const [debug, setDebug] = useState<DebugState>({
+    url: "",
+    httpStatus: null,
+    contentType: null,
+    rawBodyPreview: null,
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -43,18 +56,52 @@ export default function ReportDetailPage({
     const fetchReport = async () => {
       setStatus("loading");
       setError(null);
+      setReport(null);
+
+      const url = `/api/admin/reports/${encodeURIComponent(reportId)}`;
+      setDebug((d) => ({ ...d, url, httpStatus: null, contentType: null, rawBodyPreview: null }));
+
       try {
-        const response = await fetch(`/api/admin/reports/${reportId}`, {
+        const response = await fetch(url, {
           signal: controller.signal,
+          cache: "no-store",
+          headers: {
+            Accept: "application/json",
+          },
         });
 
-        const data = (await response.json()) as ReportResponse;
+        const contentType = response.headers.get("content-type");
+        const rawText = await response.text();
 
         if (!isMounted) return;
         if (latestReportIdRef.current !== reportId) return;
 
+        setDebug({
+          url,
+          httpStatus: response.status,
+          contentType,
+          rawBodyPreview: rawText.slice(0, 400),
+        });
+
+        // Se NON è 2xx, non proviamo nemmeno a parsare “a fiducia”
+        if (!response.ok) {
+          setError(`Unable to load report (HTTP ${response.status})`);
+          setStatus("error");
+          return;
+        }
+
+        // Proviamo a parsare JSON
+        let data: ReportResponse | null = null;
+        try {
+          data = JSON.parse(rawText) as ReportResponse;
+        } catch {
+          setError("Unable to load report (non-JSON response)");
+          setStatus("error");
+          return;
+        }
+
         if (!data.ok) {
-          setError(data.error ?? "Unable to load report");
+          setError(data.error ?? "Report not found");
           setStatus("error");
           return;
         }
@@ -62,13 +109,12 @@ export default function ReportDetailPage({
         if (!data.report) {
           setError("Report not found");
           setStatus("error");
-          setReport(null);
           return;
         }
 
         setReport(data.report);
         setStatus("ready");
-      } catch (err) {
+      } catch {
         if (
           isMounted &&
           !controller.signal.aborted &&
@@ -102,6 +148,19 @@ export default function ReportDetailPage({
         >
           Back to reports
         </Link>
+      </div>
+
+      {/* DEBUG BOX (temporaneo ma fondamentale) */}
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+        <div><span className="font-semibold">Debug URL:</span> {debug.url || "-"}</div>
+        <div><span className="font-semibold">HTTP:</span> {debug.httpStatus ?? "-"}</div>
+        <div><span className="font-semibold">Content-Type:</span> {debug.contentType ?? "-"}</div>
+        <div className="mt-2">
+          <div className="font-semibold">Body preview:</div>
+          <pre className="mt-1 max-h-40 overflow-auto rounded bg-slate-900 p-2 text-[11px] text-slate-100">
+            {debug.rawBodyPreview ?? "-"}
+          </pre>
+        </div>
       </div>
 
       {status === "error" && error ? (
