@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { getFirstReportByFormula } from "@/src/lib/admin/airtable-admin";
+import {
+  getFirstReportByFormula,
+  getReportByRecordId,
+} from "@/src/lib/admin/airtable-admin";
 import { normalizeReportId } from "@/src/lib/admin/report-id";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
 
@@ -47,9 +50,15 @@ export async function GET(
   };
 
   let report = null;
-  if (isRecordId || isReportCode) {
-    const reportCode = isRecordId ? `REP-${normalized}` : normalized;
-    const sanitized = reportCode.replace(/"/g, "\\\"");
+  if (isRecordId) {
+    report = await getReportByRecordId(tableName, normalized);
+    logLookup({
+      lookup: 1,
+      method: "get-by-id",
+      foundCount: report ? 1 : 0,
+    });
+  } else if (isReportCode) {
+    const sanitized = normalized.replace(/"/g, "\\\"");
     const formula = `${reportIdField} = "${sanitized}"`;
     report = await getFirstReportByFormula(tableName, formula);
     logLookup({
@@ -73,7 +82,10 @@ export async function GET(
       tableName,
       "note: id may be wrong or LUMA_REPORTS_TABLE points to the wrong table/base",
     );
-    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    return NextResponse.json(
+      { ok: false, error: "Report not found" },
+      { status: 404 },
+    );
   }
 
   return NextResponse.json({ ok: true, report });
