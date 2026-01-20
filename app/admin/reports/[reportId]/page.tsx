@@ -28,22 +28,30 @@ export default function ReportDetailPage({
     let isMounted = true;
     const controller = new AbortController();
 
-    const effectiveId = String(params.reportId ?? "").trim();
-    latestReportIdRef.current = effectiveId;
+    const reportId = String(params.reportId ?? "").trim();
+    latestReportIdRef.current = reportId;
+
+    if (!reportId) {
+      setError("Report not found");
+      setStatus("error");
+      return () => {
+        isMounted = false;
+        controller.abort();
+      };
+    }
 
     const fetchReport = async () => {
       setStatus("loading");
       setError(null);
       try {
-        const response = await fetch(
-          `/api/admin/reports/${encodeURIComponent(effectiveId)}`,
-          { signal: controller.signal },
-        );
+        const response = await fetch(`/api/admin/reports/${reportId}`, {
+          signal: controller.signal,
+        });
 
         const data = (await response.json()) as ReportResponse;
 
         if (!isMounted) return;
-        if (latestReportIdRef.current !== effectiveId) return;
+        if (latestReportIdRef.current !== reportId) return;
 
         if (!data.ok) {
           setError(data.error ?? "Unable to load report");
@@ -64,7 +72,7 @@ export default function ReportDetailPage({
         if (
           isMounted &&
           !controller.signal.aborted &&
-          latestReportIdRef.current === effectiveId
+          latestReportIdRef.current === reportId
         ) {
           setError("Unable to load report");
           setStatus("error");
