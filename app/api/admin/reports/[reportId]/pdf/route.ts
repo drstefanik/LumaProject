@@ -138,25 +138,18 @@ async function loadPublicImageDataUri(relPath: string) {
 function buildReportDocument(report: ReportRecord, logoSrc: string) {
   const fields = report.fields;
 
-  const metaRow = (label: string, value: unknown, keyPrefix: string) =>
+  const section = (label: string, value: unknown) =>
     React.createElement(
       View,
-      { key: keyPrefix, style: styles.metaRow },
-      React.createElement(Text, { style: styles.metaLabel }, label),
-      React.createElement(Text, { style: styles.metaValue }, toText(value) || "—"),
-    );
-
-  const section = (label: string, value: unknown, keyPrefix: string) =>
-    React.createElement(
-      View,
-      { key: keyPrefix, style: styles.section },
+      { style: styles.section },
       React.createElement(Text, { style: styles.sectionTitle }, label),
-      React.createElement(Text, { style: styles.sectionBody }, toText(value) || "—"),
+      React.createElement(Text, { style: styles.sectionBody }, toText(value)),
     );
 
   const listSection = (label: string, value: unknown, keyPrefix: string) => {
     const items = toList(value);
-    const bulletNodes =
+
+    const content =
       items.length > 0
         ? items.map((item, index) =>
             React.createElement(
@@ -175,9 +168,9 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
 
     return React.createElement(
       View,
-      { key: keyPrefix, style: styles.section },
+      { style: styles.section },
       React.createElement(Text, { style: styles.sectionTitle }, label),
-      ...bulletNodes,
+      ...content,
     );
   };
 
@@ -196,16 +189,61 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
       React.createElement(
         View,
         { style: styles.metaGrid },
-        metaRow("Report ID", (fields as any).ReportID ?? report.id, "meta-reportid"),
-        metaRow("Candidate Email", (fields as any).CandidateEmail, "meta-email"),
-        metaRow("CEFR", (fields as any).CEFR_Level, "meta-cefr"),
-        metaRow("Accent", (fields as any).Accent, "meta-accent"),
-        metaRow("Exam Date", (fields as any).ExamDate, "meta-examdate"),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Report ID"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText((fields as any).ReportID ?? report.id),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Candidate Email"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText((fields as any).CandidateEmail),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "CEFR"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText((fields as any).CEFR_Level),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Accent"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText((fields as any).Accent),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Exam Date"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText((fields as any).ExamDate),
+          ),
+        ),
       ),
       listSection("Strengths", (fields as any).Strengths, "strengths"),
       listSection("Weaknesses", (fields as any).Weaknesses, "weaknesses"),
       listSection("Recommendations", (fields as any).Recommendations, "recommendations"),
-      section("Overall Comment", (fields as any).OverallComment, "overall"),
+      section("Overall Comment", (fields as any).OverallComment),
     ),
   );
 }
