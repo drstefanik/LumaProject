@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+/* =======================
+   Types
+======================= */
+
 type ReportListItem = {
   recordId: string;
   reportId: string | null;
@@ -21,10 +25,31 @@ type ReportsResponse = {
   total: number;
   page: number;
   pageSize: number;
-  error?: string;
+  error?: unknown;
 };
 
 const pageSize = 20;
+
+/* =======================
+   Helpers
+======================= */
+
+// 🔒 Garantisce che in UI finisca SEMPRE una stringa
+function asMessage(value: unknown, fallback: string) {
+  if (typeof value === "string") return value;
+  if (value == null) return fallback;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return fallback;
+  }
+}
+
+/* =======================
+   Component
+======================= */
 
 export default function AdminReportsPage() {
   const [items, setItems] = useState<ReportListItem[]>([]);
@@ -37,9 +62,14 @@ export default function AdminReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(total / pageSize));
-  }, [total]);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(total / pageSize)),
+    [total],
+  );
+
+  /* =======================
+     Fetch reports
+  ======================= */
 
   const fetchReports = useCallback(
     async ({
@@ -51,9 +81,7 @@ export default function AdminReportsPage() {
     }) => {
       setLoading(true);
       setError(null);
-      if (!preserveActionMessage) {
-        setActionMessage(null);
-      }
+      if (!preserveActionMessage) setActionMessage(null);
 
       try {
         const params = new URLSearchParams();
@@ -63,22 +91,26 @@ export default function AdminReportsPage() {
         params.set("page", String(page));
         params.set("pageSize", String(pageSize));
 
-        const response = await fetch(`/api/admin/reports?${params.toString()}`, {
-          signal,
-        });
+        const response = await fetch(
+          `/api/admin/reports?${params.toString()}`,
+          { signal },
+        );
+
         const data = (await response.json()) as ReportsResponse;
 
         if (signal.aborted) return;
 
-        if (!data.ok) {
-          setError(data.error ?? "Unable to load reports");
+        if (!response.ok || !data.ok) {
+          setError(asMessage(data?.error, "Unable to load reports"));
           return;
         }
 
         setItems(data.items ?? []);
         setTotal(data.total ?? 0);
       } catch (err) {
-        if (!signal.aborted) setError("Unable to load reports");
+        if (!signal.aborted) {
+          setError(asMessage(err, "Unable to load reports"));
+        }
       } finally {
         if (!signal.aborted) setLoading(false);
       }
@@ -88,15 +120,14 @@ export default function AdminReportsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-
     fetchReports({ signal: controller.signal });
-
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [fetchReports]);
 
-  // NOTE: expects an Airtable recordId (recXXXXXXXXXXXXXXX)
+  /* =======================
+     Generate PDF
+  ======================= */
+
   const handleGeneratePdf = async (recordId: string) => {
     setActionMessage(null);
 
@@ -107,6 +138,8 @@ export default function AdminReportsPage() {
       );
 
       const contentType = response.headers.get("content-type") ?? "";
+
+      // 👉 Inline PDF fallback
       if (contentType.includes("application/pdf")) {
         const pdfBlob = await response.blob();
         const pdfUrl = URL.createObjectURL(pdfBlob);
@@ -115,9 +148,14 @@ export default function AdminReportsPage() {
         return;
       }
 
-      const data = await response.json();
+      const data: any = await response.json().catch(() => null);
 
-      if (data.ok) {
+      if (!response.ok) {
+        setActionMessage(asMessage(data?.error, "Failed to generate PDF"));
+        return;
+      }
+
+      if (data?.ok) {
         setActionMessage("PDF generated successfully.");
 
         if (data.pdfUrl) {
@@ -128,7 +166,8 @@ export default function AdminReportsPage() {
                     ...item,
                     pdfUrl: data.pdfUrl,
                     pdfStatus: data.pdfStatus ?? item.pdfStatus,
-                    pdfGeneratedAt: data.pdfGeneratedAt ?? item.pdfGeneratedAt,
+                    pdfGeneratedAt:
+                      data.pdfGeneratedAt ?? item.pdfGeneratedAt,
                   }
                 : item,
             ),
@@ -141,12 +180,18 @@ export default function AdminReportsPage() {
           preserveActionMessage: true,
         });
       } else {
-        setActionMessage(data.error ?? "PDF generation not available.");
+        setActionMessage(
+          asMessage(data?.error, "PDF generation not available."),
+        );
       }
     } catch (err) {
-      setActionMessage("PDF generation not available.");
+      setActionMessage(asMessage(err, "PDF generation not available."));
     }
   };
+
+  /* =======================
+     Render
+  ======================= */
 
   return (
     <section className="space-y-6">
@@ -163,11 +208,11 @@ export default function AdminReportsPage() {
             Search by email or Report ID
             <input
               value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
+              onChange={(e) => {
+                setSearch(e.target.value);
                 setPage(1);
               }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
               placeholder="john@example.com or RPT-123"
             />
           </label>
@@ -176,8 +221,8 @@ export default function AdminReportsPage() {
             CEFR
             <select
               value={cefr}
-              onChange={(event) => {
-                setCefr(event.target.value);
+              onChange={(e) => {
+                setCefr(e.target.value);
                 setPage(1);
               }}
               className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
@@ -196,8 +241,8 @@ export default function AdminReportsPage() {
             PDF status
             <select
               value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
+              onChange={(e) => {
+                setStatus(e.target.value);
                 setPage(1);
               }}
               className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
@@ -215,17 +260,17 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
-      {error ? (
+      {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
-      ) : null}
+      )}
 
-      {actionMessage ? (
+      {actionMessage && (
         <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           {actionMessage}
         </div>
-      ) : null}
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -242,13 +287,13 @@ export default function AdminReportsPage() {
           </thead>
 
           <tbody className="divide-y divide-slate-100">
-            {items.length === 0 && !loading ? (
+            {items.length === 0 && !loading && (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                   No reports found.
                 </td>
               </tr>
-            ) : null}
+            )}
 
             {items.map((item) => {
               const reportId = item.reportId?.trim() ?? "";
@@ -260,7 +305,9 @@ export default function AdminReportsPage() {
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {reportId || recordId || "—"}
                   </td>
-                  <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {item.candidateEmail ?? "—"}
+                  </td>
                   <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
                   <td className="px-4 py-3">{item.accent ?? "—"}</td>
                   <td className="px-4 py-3">
@@ -274,7 +321,7 @@ export default function AdminReportsPage() {
                       {canView ? (
                         <a
                           href={`/admin/reports/${encodeURIComponent(recordId)}`}
-                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         >
                           View
                         </a>
@@ -288,7 +335,7 @@ export default function AdminReportsPage() {
                         type="button"
                         onClick={() => handleGeneratePdf(recordId)}
                         disabled={!canView}
-                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Generate PDF
                       </button>
@@ -298,7 +345,7 @@ export default function AdminReportsPage() {
                           href={item.pdfUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
                         >
                           Download
                         </a>
@@ -323,17 +370,17 @@ export default function AdminReportsPage() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
           >
             Previous
           </button>
           <button
             type="button"
-            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
           >
             Next
           </button>
