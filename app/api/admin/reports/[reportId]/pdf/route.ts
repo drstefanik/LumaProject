@@ -263,7 +263,7 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
       React.createElement(Text, { style: styles.sectionBody }, asString(value) || "—"),
     );
 
-  const BulletList = ({ items }: { items: string[] }) => {
+  const renderBulletList = (items: string[]) => {
     if (!items.length) {
       return React.createElement(
         Text,
@@ -291,7 +291,7 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
       View,
       { key: keyPrefix, style: styles.section },
       React.createElement(Text, { style: styles.sectionTitle }, label),
-      React.createElement(BulletList, { items: asStringArray(value) }),
+      renderBulletList(asStringArray(value)),
     );
 
   return React.createElement(
