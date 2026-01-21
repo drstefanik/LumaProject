@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 
 type ReportResponse = {
   ok: boolean;
@@ -20,11 +21,8 @@ type DebugState = {
   rawBodyPreview: string | null;
 };
 
-export default function ReportDetailPage({
-  params,
-}: {
-  params: { reportId: string };
-}) {
+export default function ReportDetailPage() {
+  const params = useParams<{ reportId: string }>();
   const [report, setReport] = useState<ReportResponse["report"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
