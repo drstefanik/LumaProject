@@ -10,6 +10,8 @@ import {
 } from "@react-pdf/renderer";
 import React from "react";
 import { NextResponse } from "next/server";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 import {
   getFirstReportByFormula,
@@ -78,31 +80,83 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#0f172a",
   },
+  bullet: {
+    fontSize: 12,
+    color: "#0f172a",
+    marginLeft: 8,
+    marginBottom: 2,
+  },
 });
 
-function formatFieldValue(value: unknown) {
-  if (value === null || value === undefined) {
-    return "—";
-  }
+function toText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
-    return value.join(", ");
+    return value
+      .flatMap((item) => (item == null ? [] : [String(item)]))
+      .filter(Boolean)
+      .join("\n");
   }
-  if (typeof value === "object") {
+  try {
     return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
-  const stringValue = String(value).trim();
-  return stringValue.length > 0 ? stringValue : "—";
 }
 
-function buildReportDocument(report: ReportRecord) {
+function toList(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
+  if (typeof value === "string") {
+    return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  }
+  const text = toText(value);
+  return text ? [text] : [];
+}
+
+async function loadPublicImageDataUri(relPath: string) {
+  const abs = path.join(process.cwd(), "public", relPath);
+  const buf = await fs.readFile(abs);
+  const b64 = buf.toString("base64");
+  const ext = relPath.split(".").pop()?.toLowerCase();
+  const mime =
+    ext === "png"
+      ? "image/png"
+      : ext === "jpg" || ext === "jpeg"
+        ? "image/jpeg"
+        : "application/octet-stream";
+  return `data:${mime};base64,${b64}`;
+}
+
+function buildReportDocument(report: ReportRecord, logoSrc: string) {
   const fields = report.fields;
   const section = (label: string, value: unknown) =>
     React.createElement(
       View,
       { style: styles.section },
       React.createElement(Text, { style: styles.sectionTitle }, label),
-      React.createElement(Text, { style: styles.sectionBody }, formatFieldValue(value)),
+      React.createElement(Text, { style: styles.sectionBody }, toText(value)),
     );
+  const listSection = (label: string, value: unknown, keyPrefix: string) => {
+    const items = toList(value);
+    const content =
+      items.length > 0
+        ? items.map((item, index) =>
+            React.createElement(
+              Text,
+              { key: `${keyPrefix}-${index}`, style: styles.bullet },
+              `• ${item}`,
+            ),
+          )
+        : [React.createElement(Text, { key: `${keyPrefix}-empty`, style: styles.sectionBody }, "—")];
+    return React.createElement(
+      View,
+      { style: styles.section },
+      React.createElement(Text, { style: styles.sectionTitle }, label),
+      ...content,
+    );
+  };
 
   return React.createElement(
     Document,
@@ -113,7 +167,7 @@ function buildReportDocument(report: ReportRecord) {
       React.createElement(
         View,
         { style: styles.header },
-        React.createElement(Image, { style: styles.logo, src: LOGO_DATA_URI }),
+        React.createElement(Image, { style: styles.logo, src: logoSrc }),
         React.createElement(Text, { style: styles.title }, "LUMA Report"),
       ),
       React.createElement(
@@ -126,7 +180,7 @@ function buildReportDocument(report: ReportRecord) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            formatFieldValue(fields.ReportID ?? report.id),
+            toText(fields.ReportID ?? report.id),
           ),
         ),
         React.createElement(
@@ -136,7 +190,7 @@ function buildReportDocument(report: ReportRecord) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            formatFieldValue(fields.CandidateEmail),
+            toText(fields.CandidateEmail),
           ),
         ),
         React.createElement(
@@ -146,7 +200,7 @@ function buildReportDocument(report: ReportRecord) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            formatFieldValue(fields.CEFR_Level),
+            toText(fields.CEFR_Level),
           ),
         ),
         React.createElement(
@@ -156,7 +210,7 @@ function buildReportDocument(report: ReportRecord) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            formatFieldValue(fields.Accent),
+            toText(fields.Accent),
           ),
         ),
         React.createElement(
@@ -166,20 +220,20 @@ function buildReportDocument(report: ReportRecord) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            formatFieldValue(fields.ExamDate),
+            toText(fields.ExamDate),
           ),
         ),
       ),
-      section("Strengths", fields.Strengths),
-      section("Weaknesses", fields.Weaknesses),
-      section("Recommendations", fields.Recommendations),
+      listSection("Strengths", fields.Strengths, "strengths"),
+      listSection("Weaknesses", fields.Weaknesses, "weaknesses"),
+      listSection("Recommendations", fields.Recommendations, "recommendations"),
       section("Overall Comment", fields.OverallComment),
     ),
   );
 }
 
-async function generateReportPdf(report: ReportRecord) {
-  const document = buildReportDocument(report);
+async function generateReportPdf(report: ReportRecord, logoSrc: string) {
+  const document = buildReportDocument(report, logoSrc);
   const pdfBuffer = await renderToBuffer(document);
   return Buffer.from(pdfBuffer);
 }
@@ -194,65 +248,120 @@ export async function POST(
   }
 
   const { reportId } = await params;
-  const decoded = normalizeReportId(reportId);
-  const normalized = decoded.trim();
-  const isReportCode = normalized.startsWith("REP-");
+  let report: ReportRecord | null = null;
 
-  const tableName =
-    process.env.LUMA_REPORTS_TABLE || process.env.AIRTABLE_TABLE_REPORTS;
+  try {
+    console.log("[pdf] start", { reportId });
+    const decoded = normalizeReportId(reportId);
+    const normalized = decoded.trim();
+    const isReportCode = normalized.startsWith("REP-");
 
-  if (!tableName) {
-    throw new Error("LUMA_REPORTS_TABLE is missing.");
-  }
+    const tableName =
+      process.env.LUMA_REPORTS_TABLE || process.env.AIRTABLE_TABLE_REPORTS;
 
-  let report = null;
-  if (isReportCode) {
-    const sanitized = normalized.replace(/"/g, "\\\"");
-    report = await getFirstReportByFormula(
-      tableName,
-      `{ReportID} = "${sanitized}"`,
-    );
-  } else {
-    report = await getReportByRecordId(tableName, normalized);
-  }
+    if (!tableName) {
+      throw new Error("LUMA_REPORTS_TABLE is missing.");
+    }
 
-  if (!report) {
-    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
-  }
+    if (isReportCode) {
+      const sanitized = normalized.replace(/"/g, "\\\"");
+      report = await getFirstReportByFormula(
+        tableName,
+        `{ReportID} = "${sanitized}"`,
+      );
+    } else {
+      report = await getReportByRecordId(tableName, normalized);
+    }
 
-  const pdfBytes = await generateReportPdf(report);
-  const reportKey =
-    typeof report.fields.ReportID === "string" && report.fields.ReportID.trim()
-      ? report.fields.ReportID.trim()
-      : report.id;
+    console.log("[pdf] fetched report");
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return new NextResponse(pdfBytes, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="report-${reportKey}.pdf"`,
-      },
+    if (!report) {
+      return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    const logoSrc =
+      (process.env.LUMA_PDF_LOGO_URL || "").trim() ||
+      (await loadPublicImageDataUri("luma-logo.png").catch(() => LOGO_DATA_URI));
+
+    console.log("[pdf] building doc");
+    console.log("[pdf] renderToBuffer start");
+    const pdfBytes = await generateReportPdf(report, logoSrc);
+    console.log("[pdf] renderToBuffer ok", { bytes: pdfBytes?.length });
+    const reportKey =
+      typeof report.fields.ReportID === "string" && report.fields.ReportID.trim()
+        ? report.fields.ReportID.trim()
+        : report.id;
+
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return new NextResponse(pdfBytes, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="report-${reportKey}.pdf"`,
+        },
+      });
+    }
+
+    const filename = `reports/${reportKey}.pdf`;
+    let blobUrl: string | null = null;
+    try {
+      console.log("[pdf] blob upload start");
+      const blob = await put(filename, pdfBytes, {
+        access: "public",
+        contentType: "application/pdf",
+      });
+      blobUrl = blob.url;
+      console.log("[pdf] blob upload ok", { url: blob.url });
+    } catch (blobError) {
+      console.error("[pdf] blob upload failed", {
+        reportId,
+        message: (blobError as any)?.message,
+        name: (blobError as any)?.name,
+        stack: (blobError as any)?.stack,
+      });
+      return new NextResponse(pdfBytes, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="report-${reportKey}.pdf"`,
+        },
+      });
+    }
+
+    const pdfGeneratedAt = new Date().toISOString();
+    let updated: ReportRecord | null = null;
+    try {
+      console.log("[pdf] airtable update start");
+      updated = await updateReportByRecordId(tableName, report.id, {
+        PDFUrl: blobUrl,
+        PDFStatus: "final",
+        PDFGeneratedAt: pdfGeneratedAt,
+      });
+      console.log("[pdf] airtable update ok");
+    } catch (airtableError) {
+      console.error("[pdf] airtable update failed", {
+        reportId,
+        message: (airtableError as any)?.message,
+        name: (airtableError as any)?.name,
+        stack: (airtableError as any)?.stack,
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      pdfUrl: blobUrl,
+      pdfStatus: updated?.fields.PDFStatus ?? "final",
+      pdfGeneratedAt: updated?.fields.PDFGeneratedAt ?? pdfGeneratedAt,
     });
+  } catch (err: any) {
+    console.error("[pdf] FAILED", {
+      reportId,
+      message: err?.message,
+      name: err?.name,
+      stack: err?.stack,
+      cause: err?.cause,
+    });
+    return NextResponse.json(
+      { ok: false, error: err?.message || "PDF generation failed" },
+      { status: 500 },
+    );
   }
-
-  const filename = `reports/${reportKey}.pdf`;
-
-  const blob = await put(filename, pdfBytes, {
-    access: "public",
-    contentType: "application/pdf",
-  });
-
-  const pdfGeneratedAt = new Date().toISOString();
-  const updated = await updateReportByRecordId(tableName, report.id, {
-    PDFUrl: blob.url,
-    PDFStatus: "final",
-    PDFGeneratedAt: pdfGeneratedAt,
-  });
-
-  return NextResponse.json({
-    ok: true,
-    pdfUrl: blob.url,
-    pdfStatus: updated.fields.PDFStatus ?? "final",
-    pdfGeneratedAt: updated.fields.PDFGeneratedAt ?? pdfGeneratedAt,
-  });
 }
