@@ -40,10 +40,15 @@ function typeLabel(t: any) {
   return String(t);
 }
 
+function getTypeName(typeValue: React.ElementType) {
+  if (typeof typeValue === "string") return typeValue;
+  return typeValue.displayName || typeValue.name || "";
+}
+
 function isReactPdfPrimitive(el: any) {
   if (!React.isValidElement(el)) return false;
   // in react-pdf il type spesso è una function con displayName "Text"/"View"/...
-  const name = (el.type?.displayName || el.type?.name || "").toUpperCase();
+  const name = getTypeName(el.type).toUpperCase();
   return ALLOWED_PRIMITIVES.has(name);
 }
 
@@ -64,7 +69,7 @@ function validatePdfNode(node: any, path: string[] = []) {
 
   // React element: valida type + children
   if (React.isValidElement(node)) {
-    const tName = (node.type?.displayName || node.type?.name || "").toUpperCase();
+    const tName = getTypeName(node.type).toUpperCase();
 
     // se NON è primitive react-pdf -> colpevole quasi certo
     if (!isReactPdfPrimitive(node)) {
@@ -82,7 +87,7 @@ function validatePdfNode(node: any, path: string[] = []) {
         if (typeof c === "string" || typeof c === "number") return;
         if (Array.isArray(c)) return c.forEach((x, i) => checkTextChild(x, cpath.concat(`[${i}]`)));
         if (React.isValidElement(c)) {
-          const cn = (c.type?.displayName || c.type?.name || "").toUpperCase();
+          const cn = getTypeName(c.type).toUpperCase();
           if (cn !== "TEXT") {
             throw new Error(
               `[pdf] INVALID CHILD INSIDE <Text> at ${cpath.join(" > ")}: ${typeLabel(c.type)}`,
