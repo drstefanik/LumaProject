@@ -23,6 +23,102 @@ import { getAdminFromRequest } from "@/src/lib/admin/session";
 
 type ReportRecord = { id: string; fields: Record<string, unknown> };
 
+// React-PDF primitives (string match funziona anche in prod)
+const ALLOWED_PRIMITIVES = new Set([
+  "DOCUMENT",
+  "PAGE",
+  "VIEW",
+  "TEXT",
+  "IMAGE",
+  "LINK",
+]);
+
+function typeLabel(t: any) {
+  if (typeof t === "string") return t;
+  if (typeof t === "function") return t.displayName || t.name || "(anonymous fn)";
+  if (t && typeof t === "object") return String(t);
+  return String(t);
+}
+
+function getTypeName(typeValue: string | React.JSXElementConstructor<any>) {
+  if (typeof typeValue === "string") return typeValue;
+  if ("displayName" in typeValue && typeof typeValue.displayName === "string") {
+    return typeValue.displayName;
+  }
+  return typeValue.name || "";
+}
+
+function isReactPdfPrimitive(el: any) {
+  if (!React.isValidElement(el)) return false;
+  // in react-pdf il type spesso è una function con displayName "Text"/"View"/...
+  const name = getTypeName(el.type).toUpperCase();
+  return ALLOWED_PRIMITIVES.has(name);
+}
+
+// valida:
+// - Text children: solo string/number o altri <Text> (nesting ok), NON <View>/<Image>/<Component>
+// - tipi di nodo: solo primitives react-pdf (se trovi component custom o HTML -> segnala)
+function validatePdfNode(node: any, path: string[] = []) {
+  if (node == null || typeof node === "boolean") return;
+
+  // string/number OK come leaf
+  if (typeof node === "string" || typeof node === "number") return;
+
+  // array: valida tutti
+  if (Array.isArray(node)) {
+    node.forEach((n, i) => validatePdfNode(n, path.concat(`[${i}]`)));
+    return;
+  }
+
+  // React element: valida type + children
+  if (React.isValidElement(node)) {
+    const tName = getTypeName(node.type).toUpperCase();
+
+    // se NON è primitive react-pdf -> colpevole quasi certo
+    if (!isReactPdfPrimitive(node)) {
+      throw new Error(
+        `[pdf] INVALID NODE TYPE at ${path.join(" > ")}: ${typeLabel(node.type)} (not react-pdf primitive)`,
+      );
+    }
+
+    // regola dura: dentro TEXT non voglio elementi non-text
+    if (tName === "TEXT") {
+      const ch: any = (node.props as any)?.children;
+
+      const checkTextChild = (c: any, cpath: string[]) => {
+        if (c == null || typeof c === "boolean") return;
+        if (typeof c === "string" || typeof c === "number") return;
+        if (Array.isArray(c)) return c.forEach((x, i) => checkTextChild(x, cpath.concat(`[${i}]`)));
+        if (React.isValidElement(c)) {
+          const cn = getTypeName(c.type).toUpperCase();
+          if (cn !== "TEXT") {
+            throw new Error(
+              `[pdf] INVALID CHILD INSIDE <Text> at ${cpath.join(" > ")}: ${typeLabel(c.type)}`,
+            );
+          }
+          return validatePdfNode(c, cpath);
+        }
+        // oggetti (Airtable attachments/objects) finiscono qui
+        throw new Error(
+          `[pdf] INVALID RAW CHILD INSIDE <Text> at ${cpath.join(" > ")}: ${Object.prototype.toString.call(c)}`,
+        );
+      };
+
+      checkTextChild(ch, path.concat("TEXT.children"));
+    }
+
+    // valida children in generale
+    const children = (node.props as any)?.children;
+    validatePdfNode(children, path.concat(typeLabel(node.type)));
+    return;
+  }
+
+  // qualunque oggetto “raw” -> colpevole (es: attachment Airtable)
+  throw new Error(
+    `[pdf] INVALID RAW NODE at ${path.join(" > ")}: ${Object.prototype.toString.call(node)}`,
+  );
+}
+
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
   <rect width="80" height="80" rx="16" fill="#0f172a" />
   <text x="50%" y="54%" text-anchor="middle" font-size="32" fill="#ffffff" font-family="Helvetica">L</text>
@@ -245,6 +341,9 @@ async function generateReportPdf(report: ReportRecord, logoSrc: string) {
   assertNotReactElement("OverallComment", fields.OverallComment);
 
   const document = buildReportDocument(report, logoSrc);
+  console.log("[pdf] validating doc tree");
+  validatePdfNode(document, ["doc"]);
+  console.log("[pdf] renderToBuffer start");
   const pdfBuffer = await renderToBuffer(document);
   return Buffer.from(pdfBuffer);
 }
