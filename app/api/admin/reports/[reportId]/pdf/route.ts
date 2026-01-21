@@ -93,10 +93,13 @@ function toText(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
+  if (React.isValidElement<{ children?: React.ReactNode }>(value)) {
+    return toText(value.props?.children);
+  }
 
   if (Array.isArray(value)) {
     return value
-      .flatMap((item) => (item == null ? [] : [String(item)]))
+      .flatMap((item) => (item == null ? [] : [toText(item)]))
       .filter(Boolean)
       .join("\n");
   }
@@ -110,7 +113,10 @@ function toText(value: unknown): string {
 
 function toList(value: unknown): string[] {
   if (value == null) return [];
-  if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
+  if (React.isValidElement<{ children?: React.ReactNode }>(value)) {
+    return toList(value.props?.children);
+  }
+  if (Array.isArray(value)) return value.map((item) => toText(item)).filter(Boolean);
   if (typeof value === "string") {
     return value
       .split(/\r?\n/)
