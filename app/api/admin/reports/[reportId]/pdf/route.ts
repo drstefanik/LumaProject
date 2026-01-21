@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { put } from "@vercel/blob";
 import {
   Document,
