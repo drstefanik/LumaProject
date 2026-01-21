@@ -1,391 +1,408 @@
-"use client";
+import { put } from "@vercel/blob";
+import {
+  Document,
+  Image,
+  Page,
+  StyleSheet,
+  Text,
+  View,
+  renderToBuffer,
+} from "@react-pdf/renderer";
+import React from "react";
+import { NextResponse } from "next/server";
+import fs from "node:fs/promises";
+import path from "node:path";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  getFirstReportByFormula,
+  getReportByRecordId,
+  updateReportByRecordId,
+} from "@/src/lib/admin/airtable-admin";
+import { normalizeReportId } from "@/src/lib/admin/report-id";
+import { getAdminFromRequest } from "@/src/lib/admin/session";
 
-/* =======================
-   Types
-======================= */
+type ReportRecord = { id: string; fields: Record<string, unknown> };
 
-type ReportListItem = {
-  recordId: string;
-  reportId: string | null;
-  candidateEmail: string | null;
-  cefrLevel: string | null;
-  accent: string | null;
-  createdAt: string | null;
-  pdfUrl: string | null;
-  pdfStatus: string | null;
-  pdfGeneratedAt: string | null;
-  examDate: string | null;
-};
+const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <rect width="80" height="80" rx="16" fill="#0f172a" />
+  <text x="50%" y="54%" text-anchor="middle" font-size="32" fill="#ffffff" font-family="Helvetica">L</text>
+</svg>`;
+const LOGO_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(LOGO_SVG)}`;
 
-type ReportsResponse = {
-  ok: boolean;
-  items: ReportListItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-  error?: unknown;
-};
+const styles = StyleSheet.create({
+  page: {
+    padding: 32,
+    fontSize: 12,
+    color: "#0f172a",
+    fontFamily: "Helvetica",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  logo: {
+    width: 36,
+    height: 36,
+    marginRight: 12,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  metaGrid: {
+    marginBottom: 18,
+  },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  metaLabel: {
+    fontSize: 10,
+    textTransform: "uppercase",
+    color: "#475569",
+  },
+  metaValue: {
+    fontSize: 12,
+    color: "#0f172a",
+  },
+  section: {
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    color: "#475569",
+    marginBottom: 4,
+  },
+  sectionBody: {
+    fontSize: 12,
+    color: "#0f172a",
+  },
+  bullet: {
+    fontSize: 12,
+    color: "#0f172a",
+    marginLeft: 8,
+    marginBottom: 2,
+  },
+});
 
-const pageSize = 20;
-
-/* =======================
-   Helpers
-======================= */
-
-// 🔒 Garantisce che in UI finisca SEMPRE una stringa
-function asMessage(value: unknown, fallback: string) {
+function toText(value: unknown): string {
+  if (value == null) return "";
   if (typeof value === "string") return value;
-  if (value == null) return fallback;
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
+
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((item) => (item == null ? [] : [String(item)]))
+      .filter(Boolean)
+      .join("\n");
+  }
+
   try {
     return JSON.stringify(value);
   } catch {
-    return fallback;
+    return String(value);
   }
 }
 
-/* =======================
-   Component
-======================= */
+function toList(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+  const text = toText(value);
+  return text ? [text] : [];
+}
 
-export default function AdminReportsPage() {
-  const [items, setItems] = useState<ReportListItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [cefr, setCefr] = useState("");
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+async function loadPublicImageDataUri(relPath: string) {
+  const abs = path.join(process.cwd(), "public", relPath);
+  const buf = await fs.readFile(abs);
+  const b64 = buf.toString("base64");
+  const ext = relPath.split(".").pop()?.toLowerCase();
+  const mime =
+    ext === "png"
+      ? "image/png"
+      : ext === "jpg" || ext === "jpeg"
+        ? "image/jpeg"
+        : "application/octet-stream";
+  return `data:${mime};base64,${b64}`;
+}
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(total / pageSize)),
-    [total],
-  );
+function buildReportDocument(report: ReportRecord, logoSrc: string) {
+  const fields = report.fields as any;
 
-  /* =======================
-     Fetch reports
-  ======================= */
+  const section = (label: string, value: unknown, keyPrefix: string) =>
+    React.createElement(
+      View,
+      { style: styles.section },
+      [
+        React.createElement(
+          Text,
+          { key: `${keyPrefix}-title`, style: styles.sectionTitle },
+          label,
+        ),
+        React.createElement(
+          Text,
+          { key: `${keyPrefix}-body`, style: styles.sectionBody },
+          toText(value),
+        ),
+      ],
+    );
 
-  const fetchReports = useCallback(
-    async ({
-      signal,
-      preserveActionMessage = false,
-    }: {
-      signal: AbortSignal;
-      preserveActionMessage?: boolean;
-    }) => {
-      setLoading(true);
-      setError(null);
-      if (!preserveActionMessage) setActionMessage(null);
+  const listSection = (label: string, value: unknown, keyPrefix: string) => {
+    const items = toList(value);
 
-      try {
-        const params = new URLSearchParams();
-        if (search.trim()) params.set("q", search.trim());
-        if (cefr) params.set("cefr", cefr);
-        if (status) params.set("status", status);
-        params.set("page", String(page));
-        params.set("pageSize", String(pageSize));
-
-        const response = await fetch(
-          `/api/admin/reports?${params.toString()}`,
-          { signal },
-        );
-
-        const data = (await response.json()) as ReportsResponse;
-
-        if (signal.aborted) return;
-
-        if (!response.ok || !data.ok) {
-          setError(asMessage(data?.error, "Unable to load reports"));
-          return;
-        }
-
-        setItems(data.items ?? []);
-        setTotal(data.total ?? 0);
-      } catch (err) {
-        if (!signal.aborted) {
-          setError(asMessage(err, "Unable to load reports"));
-        }
-      } finally {
-        if (!signal.aborted) setLoading(false);
-      }
-    },
-    [search, cefr, status, page],
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchReports({ signal: controller.signal });
-    return () => controller.abort();
-  }, [fetchReports]);
-
-  /* =======================
-     Generate PDF
-  ======================= */
-
-  const handleGeneratePdf = async (recordId: string) => {
-    setActionMessage(null);
-
-    try {
-      const response = await fetch(
-        `/api/admin/reports/${encodeURIComponent(recordId)}/pdf`,
-        { method: "POST" },
-      );
-
-      const contentType = response.headers.get("content-type") ?? "";
-
-      // 👉 Inline PDF fallback
-      if (contentType.includes("application/pdf")) {
-        const pdfBlob = await response.blob();
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-        window.open(pdfUrl, "_blank", "noopener,noreferrer");
-        setActionMessage("PDF generated. Opening preview.");
-        return;
-      }
-
-      const data: any = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        setActionMessage(asMessage(data?.error, "Failed to generate PDF"));
-        return;
-      }
-
-      if (data?.ok) {
-        setActionMessage("PDF generated successfully.");
-
-        if (data.pdfUrl) {
-          setItems((prev) =>
-            prev.map((item) =>
-              item.recordId === recordId
-                ? {
-                    ...item,
-                    pdfUrl: data.pdfUrl,
-                    pdfStatus: data.pdfStatus ?? item.pdfStatus,
-                    pdfGeneratedAt:
-                      data.pdfGeneratedAt ?? item.pdfGeneratedAt,
-                  }
-                : item,
+    const bulletNodes =
+      items.length > 0
+        ? items.map((item, index) =>
+            React.createElement(
+              Text,
+              { key: `${keyPrefix}-${index}`, style: styles.bullet },
+              `• ${item}`,
             ),
-          );
-        }
+          )
+        : [
+            React.createElement(
+              Text,
+              { key: `${keyPrefix}-empty`, style: styles.sectionBody },
+              "—",
+            ),
+          ];
 
-        const controller = new AbortController();
-        await fetchReports({
-          signal: controller.signal,
-          preserveActionMessage: true,
-        });
-      } else {
-        setActionMessage(
-          asMessage(data?.error, "PDF generation not available."),
-        );
-      }
-    } catch (err) {
-      setActionMessage(asMessage(err, "PDF generation not available."));
-    }
+    // ✅ IMPORTANT: children as a SINGLE ARRAY (no spread as args)
+    return React.createElement(
+      View,
+      { style: styles.section },
+      [
+        React.createElement(
+          Text,
+          { key: `${keyPrefix}-title`, style: styles.sectionTitle },
+          label,
+        ),
+        ...bulletNodes,
+      ],
+    );
   };
 
-  /* =======================
-     Render
-  ======================= */
-
-  return (
-    <section className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
-        <p className="text-sm text-slate-500">
-          Review candidate reports and manage PDF exports.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-1 flex-col gap-3 md:flex-row">
-          <label className="flex w-full flex-col text-sm font-medium text-slate-700">
-            Search by email or Report ID
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
-              placeholder="john@example.com or RPT-123"
-            />
-          </label>
-
-          <label className="flex flex-col text-sm font-medium text-slate-700">
-            CEFR
-            <select
-              value={cefr}
-              onChange={(e) => {
-                setCefr(e.target.value);
-                setPage(1);
-              }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="">All levels</option>
-              <option value="A1">A1</option>
-              <option value="A2">A2</option>
-              <option value="B1">B1</option>
-              <option value="B2">B2</option>
-              <option value="C1">C1</option>
-              <option value="C2">C2</option>
-            </select>
-          </label>
-
-          <label className="flex flex-col text-sm font-medium text-slate-700">
-            PDF status
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="">All statuses</option>
-              <option value="draft">draft</option>
-              <option value="final">final</option>
-              <option value="pending">pending</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="text-sm text-slate-500">
-          {loading ? "Loading reports..." : `${total} total reports`}
-        </div>
-      </div>
-
-      {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {actionMessage && (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          {actionMessage}
-        </div>
-      )}
-
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Report ID</th>
-              <th className="px-4 py-3">Candidate Email</th>
-              <th className="px-4 py-3">CEFR Level</th>
-              <th className="px-4 py-3">Accent</th>
-              <th className="px-4 py-3">Created At</th>
-              <th className="px-4 py-3">PDF Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-slate-100">
-            {items.length === 0 && !loading && (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
-                  No reports found.
-                </td>
-              </tr>
-            )}
-
-            {items.map((item) => {
-              const reportId = item.reportId?.trim() ?? "";
-              const recordId = item.recordId?.trim() ?? "";
-              const canView = Boolean(recordId);
-
-              return (
-                <tr key={item.recordId} className="text-slate-700">
-                  <td className="px-4 py-3 font-medium text-slate-900">
-                    {reportId || recordId || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {item.candidateEmail ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
-                  <td className="px-4 py-3">{item.accent ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    {item.createdAt
-                      ? new Date(item.createdAt).toLocaleString()
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {canView ? (
-                        <a
-                          href={`/admin/reports/${encodeURIComponent(recordId)}`}
-                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          View
-                        </a>
-                      ) : (
-                        <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
-                          View
-                        </span>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleGeneratePdf(recordId)}
-                        disabled={!canView}
-                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Generate PDF
-                      </button>
-
-                      {item.pdfUrl ? (
-                        <a
-                          href={item.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
-                        >
-                          Download
-                        </a>
-                      ) : (
-                        <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
-                          Download
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between text-sm text-slate-600">
-        <span>
-          Page {page} of {totalPages}
-        </span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    </section>
+  return React.createElement(
+    Document,
+    null,
+    React.createElement(
+      Page,
+      { size: "A4", style: styles.page },
+      React.createElement(
+        View,
+        { style: styles.header },
+        React.createElement(Image, { style: styles.logo, src: logoSrc }),
+        React.createElement(Text, { style: styles.title }, "LUMA Report"),
+      ),
+      React.createElement(
+        View,
+        { style: styles.metaGrid },
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Report ID"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText(fields.ReportID ?? report.id),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Candidate Email"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText(fields.CandidateEmail),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "CEFR"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText(fields.CEFR_Level),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Accent"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText(fields.Accent),
+          ),
+        ),
+        React.createElement(
+          View,
+          { style: styles.metaRow },
+          React.createElement(Text, { style: styles.metaLabel }, "Exam Date"),
+          React.createElement(
+            Text,
+            { style: styles.metaValue },
+            toText(fields.ExamDate),
+          ),
+        ),
+      ),
+      listSection("Strengths", fields.Strengths, "strengths"),
+      listSection("Weaknesses", fields.Weaknesses, "weaknesses"),
+      listSection("Recommendations", fields.Recommendations, "recommendations"),
+      section("Overall Comment", fields.OverallComment, "overall"),
+    ),
   );
+}
+
+async function generateReportPdf(report: ReportRecord, logoSrc: string) {
+  const document = buildReportDocument(report, logoSrc);
+  const pdfBuffer = await renderToBuffer(document);
+  return Buffer.from(pdfBuffer);
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ reportId: string }> },
+) {
+  const session = await getAdminFromRequest(request);
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { reportId } = await params;
+  let report: ReportRecord | null = null;
+
+  try {
+    console.log("[pdf] start", { reportId });
+
+    const decoded = normalizeReportId(reportId);
+    const normalized = decoded.trim();
+    const isReportCode = normalized.startsWith("REP-");
+
+    const tableName =
+      process.env.LUMA_REPORTS_TABLE || process.env.AIRTABLE_TABLE_REPORTS;
+
+    if (!tableName) {
+      throw new Error("LUMA_REPORTS_TABLE is missing.");
+    }
+
+    if (isReportCode) {
+      const sanitized = normalized.replace(/"/g, "\\\"");
+      report = await getFirstReportByFormula(
+        tableName,
+        `{ReportID} = "${sanitized}"`,
+      );
+    } else {
+      report = await getReportByRecordId(tableName, normalized);
+    }
+
+    console.log("[pdf] fetched report");
+
+    if (!report) {
+      return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    const logoSrc =
+      (process.env.LUMA_PDF_LOGO_URL || "").trim() ||
+      (await loadPublicImageDataUri("luma-logo.png").catch(() => LOGO_DATA_URI));
+
+    console.log("[pdf] building doc");
+    console.log("[pdf] renderToBuffer start");
+
+    const pdfBytes = await generateReportPdf(report, logoSrc);
+
+    console.log("[pdf] renderToBuffer ok", { bytes: pdfBytes?.length });
+
+    const reportKey =
+      typeof (report.fields as any).ReportID === "string" &&
+      (report.fields as any).ReportID.trim()
+        ? (report.fields as any).ReportID.trim()
+        : report.id;
+
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return new NextResponse(pdfBytes, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="report-${reportKey}.pdf"`,
+        },
+      });
+    }
+
+    const filename = `reports/${reportKey}.pdf`;
+    let blobUrl: string | null = null;
+
+    try {
+      console.log("[pdf] blob upload start");
+      const blob = await put(filename, pdfBytes, {
+        access: "public",
+        contentType: "application/pdf",
+      });
+      blobUrl = blob.url;
+      console.log("[pdf] blob upload ok", { url: blob.url });
+    } catch (blobError) {
+      console.error("[pdf] blob upload failed", {
+        reportId,
+        message: (blobError as any)?.message,
+        name: (blobError as any)?.name,
+        stack: (blobError as any)?.stack,
+      });
+
+      return new NextResponse(pdfBytes, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="report-${reportKey}.pdf"`,
+        },
+      });
+    }
+
+    const pdfGeneratedAt = new Date().toISOString();
+    let updated: ReportRecord | null = null;
+
+    try {
+      console.log("[pdf] airtable update start");
+      updated = await updateReportByRecordId(tableName, report.id, {
+        PDFUrl: blobUrl,
+        PDFStatus: "final",
+        PDFGeneratedAt: pdfGeneratedAt,
+      });
+      console.log("[pdf] airtable update ok");
+    } catch (airtableError) {
+      console.error("[pdf] airtable update failed", {
+        reportId,
+        message: (airtableError as any)?.message,
+        name: (airtableError as any)?.name,
+        stack: (airtableError as any)?.stack,
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      pdfUrl: blobUrl,
+      pdfStatus: (updated?.fields as any)?.PDFStatus ?? "final",
+      pdfGeneratedAt: (updated?.fields as any)?.PDFGeneratedAt ?? pdfGeneratedAt,
+    });
+  } catch (err: any) {
+    console.error("[pdf] FAILED", {
+      reportId,
+      message: err?.message,
+      name: err?.name,
+      stack: err?.stack,
+      cause: err?.cause,
+    });
+    return NextResponse.json(
+      { ok: false, error: err?.message || "PDF generation failed" },
+      { status: 500 },
+    );
+  }
 }
