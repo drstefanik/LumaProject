@@ -121,6 +121,12 @@ function toList(value: unknown): string[] {
   return text ? [text] : [];
 }
 
+function toListText(value: unknown): string {
+  const items = toList(value);
+  if (items.length === 0) return "—";
+  return items.map((item) => `• ${item}`).join("\n");
+}
+
 async function loadPublicImageDataUri(relPath: string) {
   const abs = path.join(process.cwd(), "public", relPath);
   const buf = await fs.readFile(abs);
@@ -155,29 +161,15 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
     );
 
   const listSection = (label: string, value: unknown, keyPrefix: string) => {
-    const items = toList(value);
-    const bulletNodes =
-      items.length > 0
-        ? items.map((item, index) =>
-            React.createElement(
-              Text,
-              { key: `${keyPrefix}-${index}`, style: styles.bullet },
-              `• ${item}`,
-            ),
-          )
-        : [
-            React.createElement(
-              Text,
-              { key: `${keyPrefix}-empty`, style: styles.sectionBody },
-              "—",
-            ),
-          ];
-
     return React.createElement(
       View,
       { key: keyPrefix, style: styles.section },
       React.createElement(Text, { style: styles.sectionTitle }, label),
-      ...bulletNodes,
+      React.createElement(
+        Text,
+        { style: styles.sectionBody },
+        toListText(value),
+      ),
     );
   };
 
