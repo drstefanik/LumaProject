@@ -136,87 +136,77 @@ async function loadPublicImageDataUri(relPath: string) {
 }
 
 function buildReportDocument(report: ReportRecord, logoSrc: string) {
-  const fields = report.fields as any;
+  const fields = report.fields;
 
-  const toLines = (v: unknown) => {
-    const items = toList(v);
-    if (items.length === 0) return ["—"];
-    return items;
+  const metaRow = (label: string, value: unknown, keyPrefix: string) =>
+    React.createElement(
+      View,
+      { key: keyPrefix, style: styles.metaRow },
+      React.createElement(Text, { style: styles.metaLabel }, label),
+      React.createElement(Text, { style: styles.metaValue }, toText(value) || "—"),
+    );
+
+  const section = (label: string, value: unknown, keyPrefix: string) =>
+    React.createElement(
+      View,
+      { key: keyPrefix, style: styles.section },
+      React.createElement(Text, { style: styles.sectionTitle }, label),
+      React.createElement(Text, { style: styles.sectionBody }, toText(value) || "—"),
+    );
+
+  const listSection = (label: string, value: unknown, keyPrefix: string) => {
+    const items = toList(value);
+    const bulletNodes =
+      items.length > 0
+        ? items.map((item, index) =>
+            React.createElement(
+              Text,
+              { key: `${keyPrefix}-${index}`, style: styles.bullet },
+              `• ${item}`,
+            ),
+          )
+        : [
+            React.createElement(
+              Text,
+              { key: `${keyPrefix}-empty`, style: styles.sectionBody },
+              "—",
+            ),
+          ];
+
+    return React.createElement(
+      View,
+      { key: keyPrefix, style: styles.section },
+      React.createElement(Text, { style: styles.sectionTitle }, label),
+      ...bulletNodes,
+    );
   };
 
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          {/* Se Image dà problemi, commenta questa riga per test */}
-          <Image style={styles.logo} src={logoSrc} />
-          <Text style={styles.title}>LUMA Report</Text>
-        </View>
-
-        <View style={styles.metaGrid}>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Report ID</Text>
-            <Text style={styles.metaValue}>
-              {toText(fields.ReportID ?? report.id)}
-            </Text>
-          </View>
-
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Candidate Email</Text>
-            <Text style={styles.metaValue}>{toText(fields.CandidateEmail)}</Text>
-          </View>
-
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>CEFR</Text>
-            <Text style={styles.metaValue}>{toText(fields.CEFR_Level)}</Text>
-          </View>
-
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Accent</Text>
-            <Text style={styles.metaValue}>{toText(fields.Accent)}</Text>
-          </View>
-
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Exam Date</Text>
-            <Text style={styles.metaValue}>{toText(fields.ExamDate)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Strengths</Text>
-          {toLines(fields.Strengths).map((line, i) => (
-            <Text key={`strengths-${i}`} style={styles.bullet}>
-              • {line}
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Weaknesses</Text>
-          {toLines(fields.Weaknesses).map((line, i) => (
-            <Text key={`weaknesses-${i}`} style={styles.bullet}>
-              • {line}
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recommendations</Text>
-          {toLines(fields.Recommendations).map((line, i) => (
-            <Text key={`recommendations-${i}`} style={styles.bullet}>
-              • {line}
-            </Text>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Overall Comment</Text>
-          <Text style={styles.sectionBody}>
-            {toText(fields.OverallComment) || "—"}
-          </Text>
-        </View>
-      </Page>
-    </Document>
+  return React.createElement(
+    Document,
+    null,
+    React.createElement(
+      Page,
+      { size: "A4", style: styles.page },
+      React.createElement(
+        View,
+        { style: styles.header },
+        React.createElement(Image, { style: styles.logo, src: logoSrc }),
+        React.createElement(Text, { style: styles.title }, "LUMA Report"),
+      ),
+      React.createElement(
+        View,
+        { style: styles.metaGrid },
+        metaRow("Report ID", (fields as any).ReportID ?? report.id, "meta-reportid"),
+        metaRow("Candidate Email", (fields as any).CandidateEmail, "meta-email"),
+        metaRow("CEFR", (fields as any).CEFR_Level, "meta-cefr"),
+        metaRow("Accent", (fields as any).Accent, "meta-accent"),
+        metaRow("Exam Date", (fields as any).ExamDate, "meta-examdate"),
+      ),
+      listSection("Strengths", (fields as any).Strengths, "strengths"),
+      listSection("Weaknesses", (fields as any).Weaknesses, "weaknesses"),
+      listSection("Recommendations", (fields as any).Recommendations, "recommendations"),
+      section("Overall Comment", (fields as any).OverallComment, "overall"),
+    ),
   );
 }
 
