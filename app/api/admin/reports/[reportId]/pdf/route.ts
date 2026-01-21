@@ -80,30 +80,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#0f172a",
   },
+  list: {
+    marginTop: 2,
+  },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 2,
+  },
   bullet: {
+    width: 12,
     fontSize: 12,
     color: "#0f172a",
-    marginLeft: 8,
-    marginBottom: 2,
+  },
+  listText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#0f172a",
+  },
+  muted: {
+    color: "#94a3b8",
   },
 });
 
-function toText(value: unknown): string {
+function asString(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean")
+  if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
-  if (React.isValidElement<{ children?: React.ReactNode }>(value)) {
-    return toText(value.props?.children);
   }
-
-  if (Array.isArray(value)) {
-    return value
-      .flatMap((item) => (item == null ? [] : [toText(item)]))
-      .filter(Boolean)
-      .join("\n");
-  }
-
   try {
     return JSON.stringify(value);
   } catch {
@@ -111,51 +116,22 @@ function toText(value: unknown): string {
   }
 }
 
-function toList(value: unknown): string[] {
+function asStringArray(value: unknown): string[] {
   if (value == null) return [];
-  if (React.isValidElement<{ children?: React.ReactNode }>(value)) {
-    return toList(value.props?.children);
-  }
-  if (Array.isArray(value)) return value.map((item) => toText(item)).filter(Boolean);
-  if (typeof value === "string") {
+  if (Array.isArray(value)) {
     return value
-      .split(/\r?\n/)
-      .map((line) => line.trim())
+      .flatMap((item) => (item == null ? [] : [asString(item)]))
+      .map((item) => item.trim())
       .filter(Boolean);
   }
-  const text = toText(value);
+  const text = asString(value).trim();
   return text ? [text] : [];
 }
 
-function toListText(value: unknown): string {
-  const items = toList(value);
-  if (items.length === 0) return "—";
-  return items.map((item) => `• ${item}`).join("\n");
-}
-
-function normalizeFieldValue(value: unknown): unknown {
-  if (React.isValidElement<{ children?: React.ReactNode }>(value)) {
-    return normalizeFieldValue(value.props?.children);
+function assertNotReactElement(label: string, value: unknown) {
+  if (React.isValidElement(value)) {
+    throw new Error(`[pdf] INVALID React element in "${label}"`);
   }
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeFieldValue(item));
-  }
-  if (value && typeof value === "object") {
-    const normalized: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) {
-      normalized[key] = normalizeFieldValue(item);
-    }
-    return normalized;
-  }
-  return value;
-}
-
-function normalizeFields(fields: Record<string, unknown>) {
-  const normalized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(fields)) {
-    normalized[key] = normalizeFieldValue(value);
-  }
-  return normalized;
 }
 
 async function loadPublicImageDataUri(relPath: string) {
@@ -173,14 +149,14 @@ async function loadPublicImageDataUri(relPath: string) {
 }
 
 function buildReportDocument(report: ReportRecord, logoSrc: string) {
-  const fields = normalizeFields(report.fields);
+  const fields = report.fields;
 
   const metaRow = (label: string, value: unknown, keyPrefix: string) =>
     React.createElement(
       View,
       { key: keyPrefix, style: styles.metaRow },
       React.createElement(Text, { style: styles.metaLabel }, label),
-      React.createElement(Text, { style: styles.metaValue }, toText(value) || "—"),
+      React.createElement(Text, { style: styles.metaValue }, asString(value) || "—"),
     );
 
   const section = (label: string, value: unknown, keyPrefix: string) =>
@@ -188,21 +164,39 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
       View,
       { key: keyPrefix, style: styles.section },
       React.createElement(Text, { style: styles.sectionTitle }, label),
-      React.createElement(Text, { style: styles.sectionBody }, toText(value) || "—"),
+      React.createElement(Text, { style: styles.sectionBody }, asString(value) || "—"),
     );
 
-  const listSection = (label: string, value: unknown, keyPrefix: string) => {
+  const BulletList = ({ items }: { items: string[] }) => {
+    if (!items.length) {
+      return React.createElement(
+        Text,
+        { style: [styles.sectionBody, styles.muted] },
+        "—",
+      );
+    }
+
     return React.createElement(
       View,
-      { key: keyPrefix, style: styles.section },
-      React.createElement(Text, { style: styles.sectionTitle }, label),
-      React.createElement(
-        Text,
-        { style: styles.sectionBody },
-        toListText(value),
+      { style: styles.list },
+      items.map((item, index) =>
+        React.createElement(
+          View,
+          { key: `item-${index}`, style: styles.listRow },
+          React.createElement(Text, { style: styles.bullet }, "•"),
+          React.createElement(Text, { style: styles.listText }, item),
+        ),
       ),
     );
   };
+
+  const listSection = (label: string, value: unknown, keyPrefix: string) =>
+    React.createElement(
+      View,
+      { key: keyPrefix, style: styles.section },
+      React.createElement(Text, { style: styles.sectionTitle }, label),
+      React.createElement(BulletList, { items: asStringArray(value) }),
+    );
 
   return React.createElement(
     Document,
@@ -227,13 +221,29 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
       ),
       listSection("Strengths", (fields as any).Strengths, "strengths"),
       listSection("Weaknesses", (fields as any).Weaknesses, "weaknesses"),
-      listSection("Recommendations", (fields as any).Recommendations, "recommendations"),
+      listSection(
+        "Recommendations",
+        (fields as any).Recommendations,
+        "recommendations",
+      ),
       section("Overall Comment", (fields as any).OverallComment, "overall"),
     ),
   );
 }
 
 async function generateReportPdf(report: ReportRecord, logoSrc: string) {
+  const fields = report.fields as Record<string, unknown>;
+
+  assertNotReactElement("ReportID", fields.ReportID);
+  assertNotReactElement("CandidateEmail", fields.CandidateEmail);
+  assertNotReactElement("CEFR_Level", fields.CEFR_Level);
+  assertNotReactElement("Accent", fields.Accent);
+  assertNotReactElement("ExamDate", fields.ExamDate);
+  assertNotReactElement("Strengths", fields.Strengths);
+  assertNotReactElement("Weaknesses", fields.Weaknesses);
+  assertNotReactElement("Recommendations", fields.Recommendations);
+  assertNotReactElement("OverallComment", fields.OverallComment);
+
   const document = buildReportDocument(report, logoSrc);
   const pdfBuffer = await renderToBuffer(document);
   return Buffer.from(pdfBuffer);
