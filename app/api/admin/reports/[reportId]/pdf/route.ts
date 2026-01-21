@@ -40,7 +40,7 @@ function typeLabel(t: any) {
   return String(t);
 }
 
-function getTypeName(typeValue: React.ElementType) {
+function getTypeName(typeValue: string | React.JSXElementConstructor<any>) {
   if (typeof typeValue === "string") return typeValue;
   return typeValue.displayName || typeValue.name || "";
 }
