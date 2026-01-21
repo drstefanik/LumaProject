@@ -133,6 +133,31 @@ function toListText(value: unknown): string {
   return items.map((item) => `• ${item}`).join("\n");
 }
 
+function normalizeFieldValue(value: unknown): unknown {
+  if (React.isValidElement<{ children?: React.ReactNode }>(value)) {
+    return normalizeFieldValue(value.props?.children);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeFieldValue(item));
+  }
+  if (value && typeof value === "object") {
+    const normalized: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      normalized[key] = normalizeFieldValue(item);
+    }
+    return normalized;
+  }
+  return value;
+}
+
+function normalizeFields(fields: Record<string, unknown>) {
+  const normalized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    normalized[key] = normalizeFieldValue(value);
+  }
+  return normalized;
+}
+
 async function loadPublicImageDataUri(relPath: string) {
   const abs = path.join(process.cwd(), "public", relPath);
   const buf = await fs.readFile(abs);
@@ -148,7 +173,7 @@ async function loadPublicImageDataUri(relPath: string) {
 }
 
 function buildReportDocument(report: ReportRecord, logoSrc: string) {
-  const fields = report.fields;
+  const fields = normalizeFields(report.fields);
 
   const metaRow = (label: string, value: unknown, keyPrefix: string) =>
     React.createElement(
