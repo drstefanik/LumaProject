@@ -42,7 +42,10 @@ function typeLabel(t: any) {
 
 function getTypeName(typeValue: string | React.JSXElementConstructor<any>) {
   if (typeof typeValue === "string") return typeValue;
-  return typeValue.displayName || typeValue.name || "";
+  if ("displayName" in typeValue && typeof typeValue.displayName === "string") {
+    return typeValue.displayName;
+  }
+  return typeValue.name || "";
 }
 
 function isReactPdfPrimitive(el: any) {
