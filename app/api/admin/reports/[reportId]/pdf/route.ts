@@ -91,13 +91,16 @@ const styles = StyleSheet.create({
 function toText(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
+
   if (Array.isArray(value)) {
     return value
       .flatMap((item) => (item == null ? [] : [String(item)]))
       .filter(Boolean)
       .join("\n");
   }
+
   try {
     return JSON.stringify(value);
   } catch {
@@ -109,7 +112,10 @@ function toList(value: unknown): string[] {
   if (value == null) return [];
   if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
   if (typeof value === "string") {
-    return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
   }
   const text = toText(value);
   return text ? [text] : [];
@@ -131,6 +137,7 @@ async function loadPublicImageDataUri(relPath: string) {
 
 function buildReportDocument(report: ReportRecord, logoSrc: string) {
   const fields = report.fields;
+
   const section = (label: string, value: unknown) =>
     React.createElement(
       View,
@@ -138,8 +145,10 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
       React.createElement(Text, { style: styles.sectionTitle }, label),
       React.createElement(Text, { style: styles.sectionBody }, toText(value)),
     );
+
   const listSection = (label: string, value: unknown, keyPrefix: string) => {
     const items = toList(value);
+
     const content =
       items.length > 0
         ? items.map((item, index) =>
@@ -149,7 +158,14 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
               `• ${item}`,
             ),
           )
-        : [React.createElement(Text, { key: `${keyPrefix}-empty`, style: styles.sectionBody }, "—")];
+        : [
+            React.createElement(
+              Text,
+              { key: `${keyPrefix}-empty`, style: styles.sectionBody },
+              "—",
+            ),
+          ];
+
     return React.createElement(
       View,
       { style: styles.section },
@@ -180,7 +196,7 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            toText(fields.ReportID ?? report.id),
+            toText((fields as any).ReportID ?? report.id),
           ),
         ),
         React.createElement(
@@ -190,7 +206,7 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            toText(fields.CandidateEmail),
+            toText((fields as any).CandidateEmail),
           ),
         ),
         React.createElement(
@@ -200,7 +216,7 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            toText(fields.CEFR_Level),
+            toText((fields as any).CEFR_Level),
           ),
         ),
         React.createElement(
@@ -210,7 +226,7 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            toText(fields.Accent),
+            toText((fields as any).Accent),
           ),
         ),
         React.createElement(
@@ -220,14 +236,14 @@ function buildReportDocument(report: ReportRecord, logoSrc: string) {
           React.createElement(
             Text,
             { style: styles.metaValue },
-            toText(fields.ExamDate),
+            toText((fields as any).ExamDate),
           ),
         ),
       ),
-      listSection("Strengths", fields.Strengths, "strengths"),
-      listSection("Weaknesses", fields.Weaknesses, "weaknesses"),
-      listSection("Recommendations", fields.Recommendations, "recommendations"),
-      section("Overall Comment", fields.OverallComment),
+      listSection("Strengths", (fields as any).Strengths, "strengths"),
+      listSection("Weaknesses", (fields as any).Weaknesses, "weaknesses"),
+      listSection("Recommendations", (fields as any).Recommendations, "recommendations"),
+      section("Overall Comment", (fields as any).OverallComment),
     ),
   );
 }
@@ -252,6 +268,7 @@ export async function POST(
 
   try {
     console.log("[pdf] start", { reportId });
+
     const decoded = normalizeReportId(reportId);
     const normalized = decoded.trim();
     const isReportCode = normalized.startsWith("REP-");
@@ -285,13 +302,18 @@ export async function POST(
 
     console.log("[pdf] building doc");
     console.log("[pdf] renderToBuffer start");
+
     const pdfBytes = await generateReportPdf(report, logoSrc);
+
     console.log("[pdf] renderToBuffer ok", { bytes: pdfBytes?.length });
+
     const reportKey =
-      typeof report.fields.ReportID === "string" && report.fields.ReportID.trim()
-        ? report.fields.ReportID.trim()
+      typeof (report.fields as any).ReportID === "string" &&
+      (report.fields as any).ReportID.trim()
+        ? (report.fields as any).ReportID.trim()
         : report.id;
 
+    // If blob not configured, return inline PDF
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return new NextResponse(pdfBytes, {
         headers: {
@@ -303,6 +325,7 @@ export async function POST(
 
     const filename = `reports/${reportKey}.pdf`;
     let blobUrl: string | null = null;
+
     try {
       console.log("[pdf] blob upload start");
       const blob = await put(filename, pdfBytes, {
@@ -318,6 +341,8 @@ export async function POST(
         name: (blobError as any)?.name,
         stack: (blobError as any)?.stack,
       });
+
+      // fallback: still return inline PDF
       return new NextResponse(pdfBytes, {
         headers: {
           "Content-Type": "application/pdf",
@@ -328,6 +353,7 @@ export async function POST(
 
     const pdfGeneratedAt = new Date().toISOString();
     let updated: ReportRecord | null = null;
+
     try {
       console.log("[pdf] airtable update start");
       updated = await updateReportByRecordId(tableName, report.id, {
@@ -343,13 +369,14 @@ export async function POST(
         name: (airtableError as any)?.name,
         stack: (airtableError as any)?.stack,
       });
+      // continue; return blob url anyway
     }
 
     return NextResponse.json({
       ok: true,
       pdfUrl: blobUrl,
-      pdfStatus: updated?.fields.PDFStatus ?? "final",
-      pdfGeneratedAt: updated?.fields.PDFGeneratedAt ?? pdfGeneratedAt,
+      pdfStatus: (updated?.fields as any)?.PDFStatus ?? "final",
+      pdfGeneratedAt: (updated?.fields as any)?.PDFGeneratedAt ?? pdfGeneratedAt,
     });
   } catch (err: any) {
     console.error("[pdf] FAILED", {
