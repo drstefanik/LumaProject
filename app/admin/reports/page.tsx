@@ -67,6 +67,7 @@ function asMessage(value: unknown, fallback: string) {
 export default function Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const safeSearchParams = searchParams ?? new URLSearchParams();
   const [items, setItems] = useState<ReportListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -90,10 +91,10 @@ export default function Page() {
   }, []);
 
   const [sortKey, setSortKey] = useState<SortKey>(() =>
-    getSortKey(searchParams.get("sort")),
+    getSortKey(safeSearchParams.get("sort")),
   );
   const [sortDir, setSortDir] = useState<SortDir>(() =>
-    getSortDir(searchParams.get("dir")),
+    getSortDir(safeSearchParams.get("dir")),
   );
 
   const [loading, setLoading] = useState(false);
@@ -105,15 +106,15 @@ export default function Page() {
   }, [total]);
 
   useEffect(() => {
-    const nextKey = getSortKey(searchParams.get("sort"));
-    const nextDir = getSortDir(searchParams.get("dir"));
+    const nextKey = getSortKey(safeSearchParams.get("sort"));
+    const nextDir = getSortDir(safeSearchParams.get("dir"));
     setSortKey(nextKey);
     setSortDir(nextDir);
-  }, [getSortDir, getSortKey, searchParams]);
+  }, [getSortDir, getSortKey, safeSearchParams]);
 
   useEffect(() => {
-    const currentSort = searchParams.get("sort");
-    const currentDir = searchParams.get("dir");
+    const currentSort = safeSearchParams.get("sort");
+    const currentDir = safeSearchParams.get("dir");
     const sanitizedSort = getSortKey(currentSort);
     const sanitizedDir = getSortDir(currentDir);
 
@@ -121,11 +122,11 @@ export default function Page() {
       return;
     }
 
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(safeSearchParams);
     params.set("sort", sanitizedSort);
     params.set("dir", sanitizedDir);
     router.replace(`?${params.toString()}`, { scroll: false });
-  }, [getSortDir, getSortKey, router, searchParams]);
+  }, [getSortDir, getSortKey, router, safeSearchParams]);
 
   /* =======================
      Fetch reports
@@ -186,7 +187,7 @@ export default function Page() {
     setSortDir(nextDir);
     setPage(1);
 
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(safeSearchParams);
     params.set("sort", key);
     params.set("dir", nextDir);
     router.replace(`?${params.toString()}`, { scroll: false });
