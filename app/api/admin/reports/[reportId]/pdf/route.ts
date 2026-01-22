@@ -13,6 +13,8 @@ import { getAdminFromRequest } from "@/src/lib/admin/session";
 
 export const dynamic = "force-dynamic";
 
+const WORKER_TIMEOUT_MS = 25_000;
+
 type ReportRecord = { id: string; fields: Record<string, unknown> };
 
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
@@ -33,6 +35,26 @@ async function loadPublicImageDataUri(relPath: string) {
         ? "image/jpeg"
         : "application/octet-stream";
   return `data:${mime};base64,${b64}`;
+}
+
+function getBaseUrlFromRequest(request: NextRequest) {
+  // Vercel/Proxies can send multiple values "https,http" -> take first
+  const protoRaw = request.headers.get("x-forwarded-proto") ?? "https";
+  const forwardedProto = protoRaw.split(",")[0]?.trim() || "https";
+
+  const hostRaw =
+    request.headers.get("x-forwarded-host") ??
+    request.headers.get("host") ??
+    "lumahub.org";
+  const forwardedHost = hostRaw.split(",")[0]?.trim() || "lumahub.org";
+
+  return `${forwardedProto}://${forwardedHost}`;
+}
+
+function withTimeout(ms: number) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  return { controller, clear: () => clearTimeout(t) };
 }
 
 export async function POST(
@@ -77,17 +99,14 @@ export async function POST(
       (process.env.LUMA_PDF_LOGO_URL || "").trim() ||
       (await loadPublicImageDataUri("luma-logo.png").catch(() => LOGO_DATA_URI));
 
-    const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
-    const forwardedHost =
-      request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-    const baseUrl = forwardedHost
-      ? `${forwardedProto}://${forwardedHost}`
-      : "https://lumahub.org";
+    const baseUrl = getBaseUrlFromRequest(request);
     const workerUrl = `${baseUrl}/api/pdf-worker`;
 
+    const { controller, clear } = withTimeout(WORKER_TIMEOUT_MS);
     const workerRes = await fetch(workerUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         reportId,
         logoSrc,
@@ -98,6 +117,7 @@ export async function POST(
         },
       }),
     });
+    clear();
 
     if (!workerRes.ok) {
       const txt = await workerRes.text();
@@ -186,9 +206,14 @@ export async function POST(
   }
 }
 
-export async function GET(
-  _request: NextRequest,
-  _context: { params: Promise<{ reportId: string }> },
-) {
-  return NextResponse.json({ ok: true, route: "admin-reports-pdf" });
+// Avoid accidental GET/HEAD prefetch noise from Next/Chrome.
+export async function HEAD() {
+  return new NextResponse(null, { status: 204 });
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: "Method not allowed" },
+    { status: 405 },
+  );
 }

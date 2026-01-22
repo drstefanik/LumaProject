@@ -10,6 +10,7 @@ import { getAdminFromRequest } from "@/src/lib/admin/session";
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ reportId: string }> },
+) {
   const { reportId } = await context.params;
   const decoded = normalizeReportId(reportId);
   const normalized = decoded.trim();
