@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { AdminStack } from "@/components/admin/AdminStack";
 import { adminTokens } from "@/lib/ui/tokens";
 
 export default function AdminSignupPage() {
@@ -50,76 +51,78 @@ export default function AdminSignupPage() {
   };
 
   return (
-    <div className="flex justify-center">
-      <div className={`w-full max-w-md ${adminTokens.card}`}>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-semibold text-white">Create Admin Account</h2>
-          <p className={`text-sm ${adminTokens.mutedText}`}>
-            Use your OTP invite to create an admin login.
-          </p>
+    <AdminStack>
+      <div className="flex justify-center">
+        <div className={`w-full max-w-md ${adminTokens.card}`}>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold text-white">Create Admin Account</h2>
+            <p className={`text-sm ${adminTokens.mutedText}`}>
+              Use your OTP invite to create an admin login.
+            </p>
+          </div>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+            <label className={`block ${adminTokens.label}`}>
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className={`w-full ${adminTokens.input}`}
+                required
+              />
+            </label>
+            <label className={`block ${adminTokens.label}`}>
+              OTP
+              <input
+                type="text"
+                value={otp}
+                onChange={(event) => setOtp(event.target.value)}
+                className={`w-full ${adminTokens.input}`}
+                required
+              />
+            </label>
+            <label className={`block ${adminTokens.label}`}>
+              Password
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className={`w-full ${adminTokens.input}`}
+                required
+              />
+            </label>
+            <label className={`block ${adminTokens.label}`}>
+              Confirm Password
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className={`w-full ${adminTokens.input}`}
+                required
+              />
+            </label>
+            <label className={`block ${adminTokens.label}`}>
+              Full Name
+              <input
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                className={`w-full ${adminTokens.input}`}
+                required
+              />
+            </label>
+            {error ? <p className={adminTokens.errorNotice}>{error}</p> : null}
+            {success ? <p className={adminTokens.successNotice}>{success}</p> : null}
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full justify-center ${adminTokens.buttonPrimary}`}
+            >
+              {loading ? "Creating..." : "Create Account"}
+            </button>
+          </form>
         </div>
-        <form onSubmit={handleSubmit} className="mt-6 space-y-6">
-          <label className={`block ${adminTokens.label}`}>
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className={`w-full ${adminTokens.input}`}
-              required
-            />
-          </label>
-          <label className={`block ${adminTokens.label}`}>
-            OTP
-            <input
-              type="text"
-              value={otp}
-              onChange={(event) => setOtp(event.target.value)}
-              className={`w-full ${adminTokens.input}`}
-              required
-            />
-          </label>
-          <label className={`block ${adminTokens.label}`}>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className={`w-full ${adminTokens.input}`}
-              required
-            />
-          </label>
-          <label className={`block ${adminTokens.label}`}>
-            Confirm Password
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              className={`w-full ${adminTokens.input}`}
-              required
-            />
-          </label>
-          <label className={`block ${adminTokens.label}`}>
-            Full Name
-            <input
-              type="text"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              className={`w-full ${adminTokens.input}`}
-              required
-            />
-          </label>
-          {error ? <p className={adminTokens.errorNotice}>{error}</p> : null}
-          {success ? <p className={adminTokens.successNotice}>{success}</p> : null}
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full justify-center ${adminTokens.buttonPrimary}`}
-          >
-            {loading ? "Creating..." : "Create Account"}
-          </button>
-        </form>
       </div>
-    </div>
+    </AdminStack>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { AdminStack } from "@/components/admin/AdminStack";
 import { adminTokens } from "@/lib/ui/tokens";
 
 type ReportResponse = {
@@ -42,20 +44,22 @@ function splitLines(s: string) {
     .filter(Boolean);
 }
 
-function FieldRow({ label, value }: { label: string; value: string }) {
+function InfoCard({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-white/5 p-6 sm:grid-cols-3 sm:items-center">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-        {label}
-      </div>
-      <div className="sm:col-span-2 text-sm text-slate-200 break-words">
-        {value || "—"}
-      </div>
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="mt-2 text-sm text-slate-200 md:text-base">{children}</div>
     </div>
   );
 }
 
-function SectionBox({
+function SummaryCard({
   title,
   items,
 }: {
@@ -63,17 +67,17 @@ function SectionBox({
   items: string[] | null;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:bg-white/[0.07]">
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-white">{title}</h3>
         {items && items.length ? (
-          <ul className="list-disc space-y-2 pl-5 text-sm text-slate-200">
+          <ul className="list-disc space-y-2 pl-5 text-sm text-slate-200 md:text-base">
             {items.map((it, idx) => (
               <li key={idx}>{it}</li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-400">—</p>
+          <p className="text-sm text-slate-200 md:text-base">—</p>
         )}
       </div>
     </div>
@@ -179,73 +183,100 @@ export default function ReportDetailPage() {
   const reportIdValue = toText(fields["ReportID"]) || params.reportId || "";
 
   return (
-    <section className="mx-auto w-full max-w-5xl space-y-8 lg:space-y-10">
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-2">
-          <span className="text-xs uppercase tracking-wide text-slate-400">
-            LUMA ADMIN
-          </span>
-          <h1 className="text-2xl font-semibold text-white">Admin / Report Detail</h1>
-          <p className="text-sm text-slate-400">
-            Report ID: <span className="font-mono text-slate-200">{reportIdValue}</span>
-          </p>
-        </div>
-
-        <Link href="/admin/reports" className={adminTokens.buttonSecondary}>
-          Back to reports
-        </Link>
-      </div>
-
-      {status === "error" && error ? (
-        <div className={adminTokens.errorNotice}>{error}</div>
-      ) : null}
-
-      {status === "loading" ? (
-        <div className="space-y-3">
-          <div className="h-4 w-40 rounded bg-white/10" />
-          <div className="h-4 w-72 rounded bg-white/10" />
-          <div className="h-24 w-full rounded bg-white/10" />
-        </div>
-      ) : null}
-
-      {status === "ready" && report ? (
-        <div className="space-y-8 lg:space-y-10">
-          {/* SUMMARY */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:gap-8">
-            <FieldRow label="Candidate Email" value={candidateEmail} />
-            <FieldRow label="Created At" value={formatDate(createdAt)} />
-            <FieldRow label="CEFR Level" value={cefr} />
-            <FieldRow label="Accent" value={accent} />
+    <section className="mx-auto w-full max-w-5xl">
+      <AdminStack>
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <span className="text-xs uppercase tracking-wide text-slate-400">
+              LUMA ADMIN
+            </span>
+            <h1 className="text-3xl font-semibold text-white">Report Detail</h1>
+            <p className="text-sm text-slate-400">
+              Report ID: <span className="font-mono text-slate-200">{reportIdValue}</span>
+            </p>
           </div>
 
-          {/* SECTIONS */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
-            <SectionBox title="Strengths" items={strengths} />
-            <SectionBox title="Weaknesses" items={weaknesses} />
-            <SectionBox title="Recommendations" items={recommendations} />
-          </div>
+          <Link
+            href="/admin/reports"
+            className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]"
+          >
+            Back to reports
+          </Link>
+        </div>
 
-          {/* OVERALL COMMENT */}
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-white">Overall Comment</h3>
-              <p className="whitespace-pre-wrap text-sm text-slate-200">
-                {overallComment || "—"}
-              </p>
+        {status === "error" && error ? (
+          <div className={adminTokens.errorNotice}>{error}</div>
+        ) : null}
+
+        {status === "loading" ? (
+          <div className="space-y-3">
+            <div className="h-4 w-40 rounded bg-white/10" />
+            <div className="h-4 w-72 rounded bg-white/10" />
+            <div className="h-24 w-full rounded bg-white/10" />
+          </div>
+        ) : null}
+
+        {status === "ready" && report ? (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 md:p-8">
+            <div className="space-y-6 md:space-y-8">
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold text-white">Candidate</h2>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
+                  <InfoCard label="Candidate Email">
+                    <span className="break-words">{candidateEmail || "—"}</span>
+                  </InfoCard>
+                  <InfoCard label="Created at">{formatDate(createdAt)}</InfoCard>
+                  <InfoCard label="CEFR level">
+                    {cefr ? (
+                      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                        {cefr}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </InfoCard>
+                  <InfoCard label="Accent">
+                    {accent ? (
+                      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
+                        {accent}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </InfoCard>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold text-white">Performance Summary</h2>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6 xl:gap-8">
+                  <SummaryCard title="Strengths" items={strengths} />
+                  <SummaryCard title="Weaknesses" items={weaknesses} />
+                  <SummaryCard title="Recommendations" items={recommendations} />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h2 className="text-lg font-semibold text-white">Overall Comment</h2>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 md:p-7">
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200 md:text-base">
+                    {overallComment || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <details className="rounded-2xl border border-white/5 bg-white/[0.03] p-5 md:p-6 text-slate-400">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Raw fields (debug)
+                </summary>
+                <pre className="mt-4 overflow-x-auto rounded-md bg-slate-950/80 p-4 text-xs text-slate-200">
+                  {JSON.stringify(report.fields, null, 2)}
+                </pre>
+              </details>
             </div>
           </div>
-
-          {/* RAW (collapsible style) */}
-          <details className="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <summary className="cursor-pointer text-sm font-semibold text-white">
-              Raw fields (debug)
-            </summary>
-            <pre className="mt-3 overflow-x-auto rounded-md bg-slate-900 p-4 text-xs text-slate-200">
-              {JSON.stringify(report.fields, null, 2)}
-            </pre>
-          </details>
-        </div>
-      ) : null}
+        ) : null}
+      </AdminStack>
     </section>
   );
 }
