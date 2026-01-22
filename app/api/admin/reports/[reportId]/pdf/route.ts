@@ -38,13 +38,14 @@ async function loadPublicImageDataUri(relPath: string) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { reportId: string } },
+  context: { params: { reportId: string } | Promise<{ reportId: string }> },
 ) {
   const session = await getAdminFromRequest(request);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  const params = await Promise.resolve(context.params);
   const reportId = params.reportId;
   let report: ReportRecord | null = null;
 

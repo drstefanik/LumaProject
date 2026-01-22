@@ -11,13 +11,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { reportId: string } },
+  context: { params: { reportId: string } | Promise<{ reportId: string }> },
 ) {
   const session = await getAdminFromRequest(request);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  const params = await Promise.resolve(context.params);
   const decoded = normalizeReportId(params.reportId);
   const normalized = decoded.trim();
   const isRecordId = normalized.startsWith("rec");
