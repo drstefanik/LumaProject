@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { put } from "@vercel/blob";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -36,15 +36,15 @@ async function loadPublicImageDataUri(relPath: string) {
 }
 
 export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ reportId: string }> },
+  request: NextRequest,
+  context: { params: Promise<{ reportId: string }> },
 ) {
   const session = await getAdminFromRequest(request);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const { reportId } = await params;
+  const { reportId } = await context.params;
   let report: ReportRecord | null = null;
 
   try {
@@ -77,7 +77,12 @@ export async function POST(
       (process.env.LUMA_PDF_LOGO_URL || "").trim() ||
       (await loadPublicImageDataUri("luma-logo.png").catch(() => LOGO_DATA_URI));
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://lumahub.org";
+    const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+    const forwardedHost =
+      request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+    const baseUrl = forwardedHost
+      ? `${forwardedProto}://${forwardedHost}`
+      : "https://lumahub.org";
     const workerUrl = `${baseUrl}/api/pdf-worker`;
 
     const workerRes = await fetch(workerUrl, {
@@ -179,4 +184,11 @@ export async function POST(
       { status: 500 },
     );
   }
+}
+
+export async function GET(
+  _request: NextRequest,
+  _context: { params: Promise<{ reportId: string }> },
+) {
+  return NextResponse.json({ ok: true, route: "admin-reports-pdf" });
 }
