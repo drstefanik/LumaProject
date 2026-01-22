@@ -106,13 +106,33 @@ function assertOtpFields(fields: OtpFields) {
   if (!fields.Email) missing.push("Email");
   if (!fields.OTPHash) missing.push("OTPHash");
   if (!fields.ExpiresAt) missing.push("ExpiresAt");
-  if (fields.IsUsed === undefined) missing.push("IsUsed");
 
   if (missing.length > 0) {
     throw new Error(
       `Invalid AdminOTPs schema: missing required fields (${missing.join(", ")})`,
     );
   }
+}
+
+function normalizeOtpRecord(record: AirtableRecord<OtpFields>) {
+  const fields = record.fields ?? {};
+  if (typeof fields.IsUsed === "undefined") {
+    console.warn(
+      "[admin-otp] IsUsed missing from Airtable fields; defaulting to false",
+      {
+        recordId: record.id,
+        keys: Object.keys(fields),
+      },
+    );
+  }
+
+  return {
+    ...record,
+    fields: {
+      ...fields,
+      IsUsed: fields.IsUsed ?? false,
+    },
+  };
 }
 
 function getOtpTableName() {
@@ -182,7 +202,7 @@ export async function getLatestValidInviteByEmail(email: string) {
   params.set("sort[0][direction]", "desc");
 
   const data = await fetchAirtable<OtpFields>(getOtpTableName(), params);
-  const record = data.records[0] ?? null;
+  const record = data.records[0] ? normalizeOtpRecord(data.records[0]) : null;
 
   if (record) {
     assertOtpFields(record.fields);
@@ -199,6 +219,7 @@ export async function invalidatePreviousInvites(email: string) {
   );
   params.append("fields[]", "Email");
   params.append("fields[]", "IsUsed");
+  params.append("fields[]", "UsedAt");
 
   const records = await fetchAllRecords<OtpFields>(getOtpTableName(), params);
   if (records.length === 0) {
@@ -248,6 +269,7 @@ export async function markInviteUsed(recordId: string) {
   }
 
   const data = (await response.json()) as AirtableRecord<OtpFields>;
-  assertOtpFields(data.fields);
-  return data;
+  const record = normalizeOtpRecord(data);
+  assertOtpFields(record.fields);
+  return record;
 }
