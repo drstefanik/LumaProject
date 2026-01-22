@@ -7,28 +7,26 @@ import {
 import { normalizeReportId } from "@/src/lib/admin/report-id";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ reportId: string }> },
+  context: { params: { reportId: string } | Promise<{ reportId: string }> },
 ) {
-  const { reportId } = await context.params;
-  const decoded = normalizeReportId(reportId);
-  const normalized = decoded.trim();
-  const isRecordId = normalized.startsWith("rec");
-  const isReportCode = normalized.startsWith("REP-");
-  const idType = isRecordId ? "rec" : isReportCode ? "REP-" : "other";
-  const reportIdField = "{ReportID}";
-
   const session = await getAdminFromRequest(request);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const tableName = process.env.LUMA_REPORTS_TABLE;
+  const params = await Promise.resolve(context.params);
+  const decoded = normalizeReportId(params.reportId);
+  const normalized = decoded.trim();
+  const isRecordId = normalized.startsWith("rec");
+  const isReportCode = normalized.startsWith("REP-");
+  const reportIdField = "{ReportID}";
 
-  if (!tableName) {
-    throw new Error("LUMA_REPORTS_TABLE is missing.");
-  }
+  const tableName = process.env.LUMA_REPORTS_TABLE;
+  if (!tableName) throw new Error("LUMA_REPORTS_TABLE is missing.");
 
   const logLookup = (details: {
     lookup: number;
@@ -40,7 +38,7 @@ export async function GET(
       baseId: process.env.AIRTABLE_BASE_ID ?? null,
       tableName,
       idRequested: normalized,
-      idType,
+      idType: isRecordId ? "rec" : isReportCode ? "REP-" : "other",
       lookup: details.lookup,
       method: details.method,
       foundCount: details.foundCount,
@@ -49,16 +47,13 @@ export async function GET(
     });
   };
 
-  let report = null;
+  let report: any = null;
+
   if (isRecordId) {
     report = await getReportByRecordId(tableName, normalized);
-    logLookup({
-      lookup: 1,
-      method: "get-by-id",
-      foundCount: report ? 1 : 0,
-    });
+    logLookup({ lookup: 1, method: "get-by-id", foundCount: report ? 1 : 0 });
   } else if (isReportCode) {
-    const sanitized = normalized.replace(/"/g, "\\\"");
+    const sanitized = normalized.replace(/"/g, '\\"');
     const formula = `${reportIdField} = "${sanitized}"`;
     report = await getFirstReportByFormula(tableName, formula);
     logLookup({
@@ -75,17 +70,8 @@ export async function GET(
   }
 
   if (!report) {
-    console.log(
-      "[admin report detail] NOT FOUND rid:",
-      normalized,
-      "table:",
-      tableName,
-      "note: id may be wrong or LUMA_REPORTS_TABLE points to the wrong table/base",
-    );
-    return NextResponse.json(
-      { ok: false, error: "Report not found" },
-      { status: 404 },
-    );
+    console.log("[admin report detail] NOT FOUND rid:", normalized, "table:", tableName);
+    return NextResponse.json({ ok: false, error: "Report not found" }, { status: 404 });
   }
 
   return NextResponse.json({ ok: true, report });
