@@ -1,5 +1,3 @@
-export const runtime = "nodejs";
-
 import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs/promises";
@@ -12,6 +10,8 @@ import {
 } from "@/src/lib/admin/airtable-admin";
 import { normalizeReportId } from "@/src/lib/admin/report-id";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
+
+export const dynamic = "force-dynamic";
 
 type ReportRecord = { id: string; fields: Record<string, unknown> };
 
