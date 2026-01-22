@@ -64,7 +64,7 @@ function asMessage(value: unknown, fallback: string) {
    Page
 ======================= */
 
-export default function Page() {
+export default function ReportsClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const safeSearchParams = searchParams ?? new URLSearchParams();
