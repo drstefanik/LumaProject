@@ -1,8 +1,8 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { NextApiRequest, NextApiResponse } from "next";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
-import { buildReportPdfDocument } from "../src/lib/pdf/build-report-pdf";
+import { buildReportPdfDocument } from "@/src/lib/pdf/build-report-pdf";
 
 export const config = {
   api: {
@@ -10,7 +10,7 @@ export const config = {
   },
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
