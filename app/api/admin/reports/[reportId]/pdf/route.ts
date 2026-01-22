@@ -1,6 +1,5 @@
 import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
-import { AbortController } from "node-abort-controller";
 import fs from "node:fs/promises";
 import path from "node:path";
 
