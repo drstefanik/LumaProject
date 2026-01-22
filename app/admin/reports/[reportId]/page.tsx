@@ -79,7 +79,7 @@ function SectionBox({
 }
 
 export default function ReportDetailPage() {
-  const params = useParams<{ reportId: string }>();
+  const params = useParams<{ reportId?: string }>() ?? {};
   const [report, setReport] = useState<ReportResponse["report"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -174,7 +174,7 @@ export default function ReportDetailPage() {
   }, [fields]);
 
   const overallComment = toText(fields["OverallComment"]);
-  const reportIdValue = toText(fields["ReportID"]) || params.reportId;
+  const reportIdValue = toText(fields["ReportID"]) || params.reportId || "";
 
   return (
     <section className="mx-auto w-full max-w-5xl space-y-6">
