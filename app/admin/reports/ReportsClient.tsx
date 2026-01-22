@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { AdminStack } from "@/components/admin/AdminStack";
+import { adminTokens } from "@/lib/ui/tokens";
+
 /* =======================
    Types
 ======================= */
@@ -284,205 +287,211 @@ export default function ReportsClient() {
     <section className="space-y-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
-        <p className="text-sm text-slate-500">Review candidate reports and manage PDF exports.</p>
+        <p className={adminTokens.mutedText}>
+          Review candidate reports and manage PDF exports.
+        </p>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-1 flex-col gap-3 md:flex-row">
-          <label className="flex w-full flex-col text-sm font-medium text-slate-700">
-            Search by email or Report ID
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
-              placeholder="john@example.com or RPT-123"
-            />
-          </label>
+      <AdminStack>
+        <div
+          className={`flex flex-col gap-6 md:flex-row md:items-end md:justify-between ${adminTokens.filterCard}`}
+        >
+          <div className="flex flex-1 flex-col gap-3 md:flex-row">
+            <label className={`flex w-full flex-col ${adminTokens.label}`}>
+              Search by email or Report ID
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className={adminTokens.input}
+                placeholder="john@example.com or RPT-123"
+              />
+            </label>
 
-          <label className="flex flex-col text-sm font-medium text-slate-700">
-            CEFR
-            <select
-              value={cefr}
-              onChange={(e) => {
-                setCefr(e.target.value);
-                setPage(1);
-              }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="">All levels</option>
-              <option value="A1">A1</option>
-              <option value="A2">A2</option>
-              <option value="B1">B1</option>
-              <option value="B2">B2</option>
-              <option value="C1">C1</option>
-              <option value="C2">C2</option>
-            </select>
-          </label>
+            <label className={`flex flex-col ${adminTokens.label}`}>
+              CEFR
+              <select
+                value={cefr}
+                onChange={(e) => {
+                  setCefr(e.target.value);
+                  setPage(1);
+                }}
+                className={adminTokens.select}
+              >
+                <option value="">All levels</option>
+                <option value="A1">A1</option>
+                <option value="A2">A2</option>
+                <option value="B1">B1</option>
+                <option value="B2">B2</option>
+                <option value="C1">C1</option>
+                <option value="C2">C2</option>
+              </select>
+            </label>
 
-          <label className="flex flex-col text-sm font-medium text-slate-700">
-            PDF status
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
-            >
-              <option value="">All statuses</option>
-              <option value="draft">draft</option>
-              <option value="final">final</option>
-              <option value="pending">pending</option>
-            </select>
-          </label>
+            <label className={`flex flex-col ${adminTokens.label}`}>
+              PDF status
+              <select
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value);
+                  setPage(1);
+                }}
+                className={adminTokens.select}
+              >
+                <option value="">All statuses</option>
+                <option value="draft">draft</option>
+                <option value="final">final</option>
+                <option value="pending">pending</option>
+              </select>
+            </label>
+          </div>
+
+          <div className={adminTokens.mutedText}>
+            {loading ? "Loading reports..." : `${total} total reports`}
+          </div>
         </div>
 
-        <div className="text-sm text-slate-500">
-          {loading ? "Loading reports..." : `${total} total reports`}
-        </div>
-      </div>
+        {error ? (
+          <div className={adminTokens.errorNotice}>{error}</div>
+        ) : null}
 
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
+        {actionMessage ? (
+          <div className={adminTokens.notice}>{actionMessage}</div>
+        ) : null}
 
-      {actionMessage ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          {actionMessage}
-        </div>
-      ) : null}
-
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Report ID</th>
-              {(Object.keys(SORTABLE_COLUMNS) as SortKey[]).map((key) => {
-                const isActive = sortKey === key;
-                return (
-                  <th
-                    key={key}
-                    className="px-4 py-3"
-                    aria-sort={isActive ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSort(key)}
-                      className={`group inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 ${
-                        isActive ? "text-slate-700" : "text-slate-500 hover:text-slate-700"
-                      }`}
-                    >
-                      <span>{SORTABLE_COLUMNS[key]}</span>
-                      {renderSortIcon(isActive, sortDir)}
-                    </button>
-                  </th>
-                );
-              })}
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-slate-100">
-            {items.length === 0 && !loading ? (
+        <div className={adminTokens.tableContainer}>
+          <table className={`min-w-full text-sm ${adminTokens.tableDivider}`}>
+            <thead className={`text-left ${adminTokens.tableHeader}`}>
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
-                  No reports found.
-                </td>
-              </tr>
-            ) : null}
-
-            {items.map((item) => {
-              const reportId = item.reportId?.trim() ?? "";
-              const recordId = item.recordId?.trim() ?? "";
-              const canView = Boolean(recordId);
-
-              return (
-                <tr key={item.recordId} className="text-slate-700">
-                  <td className="px-4 py-3 font-medium text-slate-900">
-                    {reportId || recordId || "—"}
-                  </td>
-                  <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
-                  <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
-                  <td className="px-4 py-3">{item.accent ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
-                  </td>
-                  <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {canView ? (
-                        <a
-                          href={`/admin/reports/${encodeURIComponent(recordId)}`}
-                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          View
-                        </a>
-                      ) : (
-                        <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
-                          View
-                        </span>
-                      )}
-
+                <th className="px-4 py-4">Report ID</th>
+                {(Object.keys(SORTABLE_COLUMNS) as SortKey[]).map((key) => {
+                  const isActive = sortKey === key;
+                  return (
+                    <th
+                      key={key}
+                      className="px-4 py-4"
+                      aria-sort={
+                        isActive ? (sortDir === "asc" ? "ascending" : "descending") : "none"
+                      }
+                    >
                       <button
                         type="button"
-                        onClick={() => handleGeneratePdf(recordId)}
-                        disabled={!canView}
-                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => handleSort(key)}
+                        className={`group inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 ${
+                          isActive ? "text-slate-700" : "text-slate-500 hover:text-slate-700"
+                        }`}
                       >
-                        Generate PDF
+                        <span>{SORTABLE_COLUMNS[key]}</span>
+                        {renderSortIcon(isActive, sortDir)}
                       </button>
+                    </th>
+                  );
+                })}
+                <th className="px-4 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
 
-                      {item.pdfUrl ? (
-                        <a
-                          href={item.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
-                        >
-                          Download
-                        </a>
-                      ) : (
-                        <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
-                          Download
-                        </span>
-                      )}
-                    </div>
+            <tbody className={adminTokens.tableDivider}>
+              {items.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={7} className={`px-4 py-6 text-center ${adminTokens.mutedText}`}>
+                    No reports found.
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              ) : null}
 
-      <div className="flex items-center justify-between text-sm text-slate-600">
-        <span>
-          Page {page} of {totalPages}
-        </span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
-          >
-            Next
-          </button>
+              {items.map((item) => {
+                const reportId = item.reportId?.trim() ?? "";
+                const recordId = item.recordId?.trim() ?? "";
+                const canView = Boolean(recordId);
+                const generateClass = item.pdfUrl
+                  ? adminTokens.buttonSecondary
+                  : adminTokens.buttonPrimary;
+
+                return (
+                  <tr
+                    key={item.recordId}
+                    className={`${adminTokens.tableRow} ${adminTokens.tableRowHover}`}
+                  >
+                    <td className="px-4 py-4 font-semibold text-slate-900">
+                      {reportId || recordId || "—"}
+                    </td>
+                    <td className="px-4 py-4">{item.candidateEmail ?? "—"}</td>
+                    <td className="px-4 py-4">{item.cefrLevel ?? "—"}</td>
+                    <td className="px-4 py-4">{item.accent ?? "—"}</td>
+                    <td className="px-4 py-4">
+                      {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
+                    </td>
+                    <td className="px-4 py-4">{item.pdfStatus ?? "—"}</td>
+                    <td className="px-4 py-4 text-right">
+                      <div className="flex flex-col items-end gap-2">
+                        {canView ? (
+                          <a
+                            href={`/admin/reports/${encodeURIComponent(recordId)}`}
+                            className={adminTokens.buttonSecondary}
+                          >
+                            View
+                          </a>
+                        ) : (
+                          <span className={adminTokens.buttonGhost}>View</span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleGeneratePdf(recordId)}
+                          disabled={!canView}
+                          className={generateClass}
+                        >
+                          Generate PDF
+                        </button>
+
+                        {item.pdfUrl ? (
+                          <a
+                            href={item.pdfUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={adminTokens.buttonPrimary}
+                          >
+                            Download
+                          </a>
+                        ) : (
+                          <span className={adminTokens.buttonGhost}>Download</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </div>
+
+        <div className={`flex items-center justify-between text-sm ${adminTokens.mutedText}`}>
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className={adminTokens.buttonSecondary}
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className={adminTokens.buttonSecondary}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </AdminStack>
     </section>
   );
 }
