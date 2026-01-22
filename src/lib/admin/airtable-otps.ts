@@ -190,6 +190,8 @@ export async function getLatestValidInviteByEmail(email: string) {
       email,
     )}", {IsUsed} != TRUE(), IS_AFTER({ExpiresAt}, "${new Date().toISOString()}"))`,
   );
+
+  // Explicit fields: ensures IsUsed is returned and schema stays stable.
   params.append("fields[]", "Email");
   params.append("fields[]", "OTPHash");
   params.append("fields[]", "ExpiresAt");
@@ -198,6 +200,7 @@ export async function getLatestValidInviteByEmail(email: string) {
   params.append("fields[]", "CreatedAt");
   params.append("fields[]", "CreatedBy");
   params.append("fields[]", "UsedAt");
+
   params.set("sort[0][field]", "CreatedAt");
   params.set("sort[0][direction]", "desc");
 
