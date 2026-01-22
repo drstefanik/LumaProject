@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AdminStack } from "@/components/admin/AdminStack";
 import { adminTokens } from "@/lib/ui/tokens";
 
 /* =======================
@@ -189,194 +190,196 @@ export default function Page() {
   ======================= */
 
   return (
-    <section className="space-y-8 lg:space-y-10">
-      <div
-        className={`flex flex-col gap-6 md:flex-row md:items-end md:justify-between ${adminTokens.filterCard}`}
-      >
-        <div className="flex flex-1 flex-col gap-3 md:flex-row">
-          <label className={`flex w-full flex-col ${adminTokens.label}`}>
-            Search by email or Report ID
-            <input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className={adminTokens.input}
-              placeholder="john@example.com or RPT-123"
-            />
-          </label>
+    <section>
+      <AdminStack>
+        <div
+          className={`flex flex-col gap-6 md:flex-row md:items-end md:justify-between ${adminTokens.filterCard}`}
+        >
+          <div className="flex flex-1 flex-col gap-3 md:flex-row">
+            <label className={`flex w-full flex-col ${adminTokens.label}`}>
+              Search by email or Report ID
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className={adminTokens.input}
+                placeholder="john@example.com or RPT-123"
+              />
+            </label>
 
-          <label className={`flex flex-col ${adminTokens.label}`}>
-            CEFR
-            <select
-              value={cefr}
-              onChange={(e) => {
-                setCefr(e.target.value);
-                setPage(1);
-              }}
-              className={adminTokens.select}
-            >
-              <option value="">All levels</option>
-              <option value="A1">A1</option>
-              <option value="A2">A2</option>
-              <option value="B1">B1</option>
-              <option value="B2">B2</option>
-              <option value="C1">C1</option>
-              <option value="C2">C2</option>
-            </select>
-          </label>
+            <label className={`flex flex-col ${adminTokens.label}`}>
+              CEFR
+              <select
+                value={cefr}
+                onChange={(e) => {
+                  setCefr(e.target.value);
+                  setPage(1);
+                }}
+                className={adminTokens.select}
+              >
+                <option value="">All levels</option>
+                <option value="A1">A1</option>
+                <option value="A2">A2</option>
+                <option value="B1">B1</option>
+                <option value="B2">B2</option>
+                <option value="C1">C1</option>
+                <option value="C2">C2</option>
+              </select>
+            </label>
 
-          <label className={`flex flex-col ${adminTokens.label}`}>
-            PDF status
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-              className={adminTokens.select}
-            >
-              <option value="">All statuses</option>
-              <option value="draft">draft</option>
-              <option value="final">final</option>
-              <option value="pending">pending</option>
-            </select>
-          </label>
+            <label className={`flex flex-col ${adminTokens.label}`}>
+              PDF status
+              <select
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value);
+                  setPage(1);
+                }}
+                className={adminTokens.select}
+              >
+                <option value="">All statuses</option>
+                <option value="draft">draft</option>
+                <option value="final">final</option>
+                <option value="pending">pending</option>
+              </select>
+            </label>
+          </div>
+
+          <div className={`text-sm ${adminTokens.mutedText}`}>
+            {loading ? "Loading reports..." : `${total} total reports`}
+          </div>
         </div>
 
-        <div className={`text-sm ${adminTokens.mutedText}`}>
-          {loading ? "Loading reports..." : `${total} total reports`}
-        </div>
-      </div>
+        {error ? (
+          <div className={adminTokens.errorNotice}>{error}</div>
+        ) : null}
 
-      {error ? (
-        <div className={adminTokens.errorNotice}>{error}</div>
-      ) : null}
+        {actionMessage ? (
+          <div className={adminTokens.notice}>{actionMessage}</div>
+        ) : null}
 
-      {actionMessage ? (
-        <div className={adminTokens.notice}>{actionMessage}</div>
-      ) : null}
-
-      <div className={adminTokens.tableContainer}>
-        <table className={`min-w-full text-sm ${adminTokens.tableDivider}`}>
-          <thead className={`text-left ${adminTokens.tableHeader}`}>
-            <tr>
-              <th className="px-4 py-4">Report ID</th>
-              <th className="px-4 py-4">Candidate Email</th>
-              <th className="px-4 py-4">CEFR Level</th>
-              <th className="px-4 py-4">Accent</th>
-              <th className="px-4 py-4">Created At</th>
-              <th className="px-4 py-4">PDF Status</th>
-              <th className="px-4 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody className={adminTokens.tableDivider}>
-            {items.length === 0 && !loading ? (
+        <div className={adminTokens.tableContainer}>
+          <table className={`min-w-full text-sm ${adminTokens.tableDivider}`}>
+            <thead className={`text-left ${adminTokens.tableHeader}`}>
               <tr>
-                <td
-                  colSpan={7}
-                  className={`px-4 py-6 text-center ${adminTokens.mutedText}`}
-                >
-                  No reports found.
-                </td>
+                <th className="px-4 py-4">Report ID</th>
+                <th className="px-4 py-4">Candidate Email</th>
+                <th className="px-4 py-4">CEFR Level</th>
+                <th className="px-4 py-4">Accent</th>
+                <th className="px-4 py-4">Created At</th>
+                <th className="px-4 py-4">PDF Status</th>
+                <th className="px-4 py-4 text-right">Actions</th>
               </tr>
-            ) : null}
+            </thead>
 
-            {items.map((item) => {
-              const reportId = item.reportId?.trim() ?? "";
-              const recordId = item.recordId?.trim() ?? "";
-              const canView = Boolean(recordId);
-              const generateClass = item.pdfUrl
-                ? adminTokens.buttonSecondary
-                : adminTokens.buttonPrimary;
-
-              return (
-                <tr
-                  key={item.recordId}
-                  className={`${adminTokens.tableRow} ${adminTokens.tableRowHover}`}
-                >
-                  <td className="px-4 py-4 font-semibold text-white">
-                    {reportId || recordId || "—"}
-                  </td>
-                  <td className="px-4 py-4">{item.candidateEmail ?? "—"}</td>
-                  <td className="px-4 py-4">{item.cefrLevel ?? "—"}</td>
-                  <td className="px-4 py-4">{item.accent ?? "—"}</td>
-                  <td className="px-4 py-4">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
-                  </td>
-                  <td className="px-4 py-4">{item.pdfStatus ?? "—"}</td>
-                  <td className="px-4 py-4 text-right">
-                    <div className="flex flex-col items-end gap-2">
-                      {canView ? (
-                        <a
-                          href={`/admin/reports/${encodeURIComponent(recordId)}`}
-                          className={adminTokens.buttonSecondary}
-                        >
-                          View
-                        </a>
-                      ) : (
-                        <span className={adminTokens.buttonGhost}>
-                          View
-                        </span>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleGeneratePdf(recordId)}
-                        disabled={!canView}
-                        className={generateClass}
-                      >
-                        Generate PDF
-                      </button>
-
-                      {item.pdfUrl ? (
-                        <a
-                          href={item.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={adminTokens.buttonPrimary}
-                        >
-                          Download
-                        </a>
-                      ) : (
-                        <span className={adminTokens.buttonGhost}>
-                          Download
-                        </span>
-                      )}
-                    </div>
+            <tbody className={adminTokens.tableDivider}>
+              {items.length === 0 && !loading ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className={`px-4 py-6 text-center ${adminTokens.mutedText}`}
+                  >
+                    No reports found.
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              ) : null}
 
-      <div className={`flex items-center justify-between text-sm ${adminTokens.mutedText}`}>
-        <span>
-          Page {page} of {totalPages}
-        </span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className={adminTokens.buttonSecondary}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages}
-            className={adminTokens.buttonSecondary}
-          >
-            Next
-          </button>
+              {items.map((item) => {
+                const reportId = item.reportId?.trim() ?? "";
+                const recordId = item.recordId?.trim() ?? "";
+                const canView = Boolean(recordId);
+                const generateClass = item.pdfUrl
+                  ? adminTokens.buttonSecondary
+                  : adminTokens.buttonPrimary;
+
+                return (
+                  <tr
+                    key={item.recordId}
+                    className={`${adminTokens.tableRow} ${adminTokens.tableRowHover}`}
+                  >
+                    <td className="px-4 py-4 font-semibold text-white">
+                      {reportId || recordId || "—"}
+                    </td>
+                    <td className="px-4 py-4">{item.candidateEmail ?? "—"}</td>
+                    <td className="px-4 py-4">{item.cefrLevel ?? "—"}</td>
+                    <td className="px-4 py-4">{item.accent ?? "—"}</td>
+                    <td className="px-4 py-4">
+                      {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
+                    </td>
+                    <td className="px-4 py-4">{item.pdfStatus ?? "—"}</td>
+                    <td className="px-4 py-4 text-right">
+                      <div className="flex flex-col items-end gap-2">
+                        {canView ? (
+                          <a
+                            href={`/admin/reports/${encodeURIComponent(recordId)}`}
+                            className={adminTokens.buttonSecondary}
+                          >
+                            View
+                          </a>
+                        ) : (
+                          <span className={adminTokens.buttonGhost}>
+                            View
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleGeneratePdf(recordId)}
+                          disabled={!canView}
+                          className={generateClass}
+                        >
+                          Generate PDF
+                        </button>
+
+                        {item.pdfUrl ? (
+                          <a
+                            href={item.pdfUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={adminTokens.buttonPrimary}
+                          >
+                            Download
+                          </a>
+                        ) : (
+                          <span className={adminTokens.buttonGhost}>
+                            Download
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </div>
+
+        <div className={`flex items-center justify-between text-sm ${adminTokens.mutedText}`}>
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className={adminTokens.buttonSecondary}
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className={adminTokens.buttonSecondary}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </AdminStack>
     </section>
   );
 }
