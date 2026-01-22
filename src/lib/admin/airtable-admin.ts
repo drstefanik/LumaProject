@@ -299,6 +299,8 @@ export async function listReports(params: {
   q?: string | null;
   cefr?: string | null;
   status?: string | null;
+  sort?: string | null;
+  dir?: string | null;
   page?: number | null;
   pageSize?: number | null;
 }) {
@@ -310,6 +312,16 @@ export async function listReports(params: {
 
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? 20));
+
+  const sortFields: Record<string, string> = {
+    candidateEmail: "CandidateEmail",
+    cefrLevel: "CEFR_Level",
+    accent: "Accent",
+    createdAt: "CreatedAt",
+    pdfStatus: "PDFStatus",
+  };
+  const sortKey = params.sort && sortFields[params.sort] ? params.sort : "createdAt";
+  const sortDir = params.dir === "asc" ? "asc" : "desc";
 
   const queryParams = new URLSearchParams();
   queryParams.set("pageSize", "100");
@@ -330,6 +342,8 @@ export async function listReports(params: {
   queryParams.append("fields[]", "ExamDate");
   queryParams.append("fields[]", "CreatedAt");
   queryParams.append("fields[]", "EmailKeyNormalized");
+  queryParams.append("sort[0][field]", sortFields[sortKey]);
+  queryParams.append("sort[0][direction]", sortDir);
 
   const records = await fetchAllRecords<ReportFields>(tableName, queryParams);
   if (records.length > 0) {

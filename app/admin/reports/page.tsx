@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 /* =======================
    Types
@@ -29,6 +30,19 @@ type ReportsResponse = {
 };
 
 const PAGE_SIZE = 20;
+const DEFAULT_SORT = "createdAt";
+const DEFAULT_DIR = "desc";
+
+const SORTABLE_COLUMNS = {
+  candidateEmail: "Candidate Email",
+  cefrLevel: "CEFR Level",
+  accent: "Accent",
+  createdAt: "Created At",
+  pdfStatus: "PDF Status",
+} as const;
+
+type SortKey = keyof typeof SORTABLE_COLUMNS;
+type SortDir = "asc" | "desc";
 
 /* =======================
    Helpers
@@ -51,6 +65,8 @@ function asMessage(value: unknown, fallback: string) {
 ======================= */
 
 export default function Page() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<ReportListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -59,6 +75,27 @@ export default function Page() {
   const [cefr, setCefr] = useState("");
   const [status, setStatus] = useState("");
 
+  const getSortKey = useCallback(
+    (value: string | null) => {
+      if (value && value in SORTABLE_COLUMNS) {
+        return value as SortKey;
+      }
+      return DEFAULT_SORT as SortKey;
+    },
+    [],
+  );
+
+  const getSortDir = useCallback((value: string | null) => {
+    return value === "asc" || value === "desc" ? value : DEFAULT_DIR;
+  }, []);
+
+  const [sortKey, setSortKey] = useState<SortKey>(() =>
+    getSortKey(searchParams.get("sort")),
+  );
+  const [sortDir, setSortDir] = useState<SortDir>(() =>
+    getSortDir(searchParams.get("dir")),
+  );
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -66,6 +103,29 @@ export default function Page() {
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil(total / PAGE_SIZE));
   }, [total]);
+
+  useEffect(() => {
+    const nextKey = getSortKey(searchParams.get("sort"));
+    const nextDir = getSortDir(searchParams.get("dir"));
+    setSortKey(nextKey);
+    setSortDir(nextDir);
+  }, [getSortDir, getSortKey, searchParams]);
+
+  useEffect(() => {
+    const currentSort = searchParams.get("sort");
+    const currentDir = searchParams.get("dir");
+    const sanitizedSort = getSortKey(currentSort);
+    const sanitizedDir = getSortDir(currentDir);
+
+    if (sanitizedSort === currentSort && sanitizedDir === currentDir) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams);
+    params.set("sort", sanitizedSort);
+    params.set("dir", sanitizedDir);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [getSortDir, getSortKey, router, searchParams]);
 
   /* =======================
      Fetch reports
@@ -88,6 +148,8 @@ export default function Page() {
         if (search.trim()) params.set("q", search.trim());
         if (cefr) params.set("cefr", cefr);
         if (status) params.set("status", status);
+        params.set("sort", sortKey);
+        params.set("dir", sortDir);
         params.set("page", String(page));
         params.set("pageSize", String(PAGE_SIZE));
 
@@ -109,7 +171,7 @@ export default function Page() {
         if (!signal.aborted) setLoading(false);
       }
     },
-    [search, cefr, status, page],
+    [search, cefr, status, page, sortKey, sortDir],
   );
 
   useEffect(() => {
@@ -117,6 +179,37 @@ export default function Page() {
     fetchReports({ signal: controller.signal });
     return () => controller.abort();
   }, [fetchReports]);
+
+  const handleSort = (key: SortKey) => {
+    const nextDir = key === sortKey ? (sortDir === "asc" ? "desc" : "asc") : "asc";
+    setSortKey(key);
+    setSortDir(nextDir);
+    setPage(1);
+
+    const params = new URLSearchParams(searchParams);
+    params.set("sort", key);
+    params.set("dir", nextDir);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
+  const renderSortIcon = (active: boolean, dir: SortDir) => {
+    if (!active) return null;
+
+    const rotationClass = dir === "asc" ? "rotate-180" : "";
+
+    return (
+      <svg
+        className={`h-3 w-3 text-slate-400 transition-transform ${rotationClass}`}
+        viewBox="0 0 20 20"
+        aria-hidden="true"
+      >
+        <path
+          d="M10 14l-4-4h8l-4 4z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  };
 
   /* =======================
      Generate PDF
@@ -268,11 +361,27 @@ export default function Page() {
           <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Report ID</th>
-              <th className="px-4 py-3">Candidate Email</th>
-              <th className="px-4 py-3">CEFR Level</th>
-              <th className="px-4 py-3">Accent</th>
-              <th className="px-4 py-3">Created At</th>
-              <th className="px-4 py-3">PDF Status</th>
+              {(Object.keys(SORTABLE_COLUMNS) as SortKey[]).map((key) => {
+                const isActive = sortKey === key;
+                return (
+                  <th
+                    key={key}
+                    className="px-4 py-3"
+                    aria-sort={isActive ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSort(key)}
+                      className={`group inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/60 ${
+                        isActive ? "text-slate-700" : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      <span>{SORTABLE_COLUMNS[key]}</span>
+                      {renderSortIcon(isActive, sortDir)}
+                    </button>
+                  </th>
+                );
+              })}
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>

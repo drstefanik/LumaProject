@@ -13,10 +13,12 @@ export async function GET(request: Request) {
   const q = searchParams.get("q");
   const cefr = searchParams.get("cefr");
   const status = searchParams.get("status");
+  const sort = searchParams.get("sort");
+  const dir = searchParams.get("dir");
   const page = Number(searchParams.get("page") ?? "1");
   const pageSize = Number(searchParams.get("pageSize") ?? "20");
 
-  const result = await listReports({ q, cefr, status, page, pageSize });
+  const result = await listReports({ q, cefr, status, sort, dir, page, pageSize });
 
   return NextResponse.json({ ok: true, ...result });
 }
