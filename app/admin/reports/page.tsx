@@ -192,6 +192,13 @@ export default function Page() {
   return (
     <section>
       <AdminStack>
+        <div className={adminTokens.pageHeader}>
+          <p className={adminTokens.headerKicker}>LUMA Admin</p>
+          <h1 className={adminTokens.headerTitle}>Admin / Reports</h1>
+          <p className={adminTokens.headerSubtitle}>
+            Review candidate reports and manage PDF exports.
+          </p>
+        </div>
         <div
           className={`flex flex-col gap-6 md:flex-row md:items-end md:justify-between ${adminTokens.filterCard}`}
         >

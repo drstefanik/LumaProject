@@ -40,7 +40,7 @@ export default function AdminHeader() {
   const showLogout = !pathname.startsWith("/admin/login") && !pathname.startsWith("/admin/signup");
 
   return (
-    <header className={adminTokens.headerCard}>
+    <header className={`flex flex-wrap items-start justify-between gap-6 ${adminTokens.pageHeader}`}>
       <div className="space-y-2">
         <p className={adminTokens.headerKicker}>LUMA Admin</p>
         <h1 className={adminTokens.headerTitle}>{current.title}</h1>

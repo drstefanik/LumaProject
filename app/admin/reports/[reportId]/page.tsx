@@ -185,23 +185,24 @@ export default function ReportDetailPage() {
   return (
     <section className="mx-auto w-full max-w-5xl">
       <AdminStack>
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <span className="text-xs uppercase tracking-wide text-slate-400">
-              LUMA ADMIN
-            </span>
-            <h1 className="text-3xl font-semibold text-white">Report Detail</h1>
-            <p className="text-sm text-slate-400">
-              Report ID: <span className="font-mono text-slate-200">{reportIdValue}</span>
-            </p>
-          </div>
+        <div className={adminTokens.pageHeader}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-2">
+              <p className={adminTokens.headerKicker}>LUMA Admin</p>
+              <h1 className={adminTokens.headerTitle}>Admin / Report Detail</h1>
+              <p className={adminTokens.headerSubtitle}>
+                Report ID:{" "}
+                <span className="font-mono text-slate-200">{reportIdValue}</span>
+              </p>
+            </div>
 
-          <Link
-            href="/admin/reports"
-            className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.07]"
-          >
-            Back to reports
-          </Link>
+            <Link
+              href="/admin/reports"
+              className={adminTokens.buttonSecondary}
+            >
+              Back to reports
+            </Link>
+          </div>
         </div>
 
         {status === "error" && error ? (
