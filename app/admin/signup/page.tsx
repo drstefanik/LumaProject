@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { adminTokens } from "@/lib/ui/tokens";
+
 export default function AdminSignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -48,79 +50,69 @@ export default function AdminSignupPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">
-          Create Admin Account
-        </h1>
-        <p className="mt-2 text-sm text-slate-500">
+    <div className="flex justify-center">
+      <div className={`w-full max-w-md ${adminTokens.card}`}>
+        <h2 className="text-2xl font-semibold text-white">Create Admin Account</h2>
+        <p className={`mt-2 text-sm ${adminTokens.mutedText}`}>
           Use your OTP invite to create an admin login.
         </p>
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={`block ${adminTokens.label}`}>
             Email
             <input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              className={`w-full ${adminTokens.input}`}
               required
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={`block ${adminTokens.label}`}>
             OTP
             <input
               type="text"
               value={otp}
               onChange={(event) => setOtp(event.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              className={`w-full ${adminTokens.input}`}
               required
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={`block ${adminTokens.label}`}>
             Password
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              className={`w-full ${adminTokens.input}`}
               required
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={`block ${adminTokens.label}`}>
             Confirm Password
             <input
               type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              className={`w-full ${adminTokens.input}`}
               required
             />
           </label>
-          <label className="block text-sm font-medium text-slate-700">
+          <label className={`block ${adminTokens.label}`}>
             Full Name
             <input
               type="text"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+              className={`w-full ${adminTokens.input}`}
               required
             />
           </label>
-          {error ? (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-              {error}
-            </p>
-          ) : null}
-          {success ? (
-            <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-600">
-              {success}
-            </p>
-          ) : null}
+          {error ? <p className={adminTokens.errorNotice}>{error}</p> : null}
+          {success ? <p className={adminTokens.successNotice}>{success}</p> : null}
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            className={`w-full justify-center ${adminTokens.buttonPrimary}`}
           >
             {loading ? "Creating..." : "Create Account"}
           </button>

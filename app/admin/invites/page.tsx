@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { adminTokens } from "@/lib/ui/tokens";
+
 type InviteResponse = {
   ok: boolean;
   otp?: string;
@@ -37,33 +39,29 @@ export default function AdminInvitesPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Invite Admin</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Generate a one-time OTP for a new admin account.
-        </p>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4 rounded-xl border border-slate-200 bg-white p-6"
-      >
-        <label className="block text-sm font-medium text-slate-700">
+      <form onSubmit={handleSubmit} className={`space-y-4 ${adminTokens.card}`}>
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Invite Admin</h2>
+          <p className={`mt-2 text-sm ${adminTokens.mutedText}`}>
+            Generate a one-time OTP for a new admin account.
+          </p>
+        </div>
+        <label className={`block ${adminTokens.label}`}>
           Email
           <input
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+            className={`w-full ${adminTokens.input}`}
             required
           />
         </label>
-        <label className="block text-sm font-medium text-slate-700">
+        <label className={`block ${adminTokens.label}`}>
           Role
           <select
             value={role}
             onChange={(event) => setRole(event.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-slate-400 focus:outline-none"
+            className={`w-full ${adminTokens.select}`}
           >
             <option value="admin">admin</option>
             <option value="reviewer">reviewer</option>
@@ -72,7 +70,7 @@ export default function AdminInvitesPage() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+          className={adminTokens.buttonPrimary}
         >
           {loading ? "Creating..." : "Create Invite"}
         </button>
@@ -80,17 +78,17 @@ export default function AdminInvitesPage() {
 
       {result ? (
         result.ok ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-sm text-emerald-700">
-            <p className="font-semibold">OTP created</p>
-            <p className="mt-2 text-lg font-mono tracking-widest text-emerald-900">
+          <div className={adminTokens.successNotice}>
+            <p className="font-semibold text-emerald-100">OTP created</p>
+            <p className="mt-2 text-lg font-mono tracking-widest text-emerald-50">
               {result.otp}
             </p>
-            <p className="mt-3 text-sm text-emerald-700">
+            <p className="mt-3 text-sm text-emerald-100">
               OTP expires in 24 hours.
             </p>
           </div>
         ) : (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className={adminTokens.errorNotice}>
             {result.error ?? "Unable to create invite."}
           </div>
         )

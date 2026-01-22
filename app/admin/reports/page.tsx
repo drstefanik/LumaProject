@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { adminTokens } from "@/lib/ui/tokens";
+
 /* =======================
    Types
 ======================= */
@@ -188,14 +190,9 @@ export default function Page() {
 
   return (
     <section className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
-        <p className="text-sm text-slate-500">Review candidate reports and manage PDF exports.</p>
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 md:flex-row md:items-end md:justify-between">
+      <div className={`flex flex-col gap-4 md:flex-row md:items-end md:justify-between ${adminTokens.filterCard}`}>
         <div className="flex flex-1 flex-col gap-3 md:flex-row">
-          <label className="flex w-full flex-col text-sm font-medium text-slate-700">
+          <label className={`flex w-full flex-col ${adminTokens.label}`}>
             Search by email or Report ID
             <input
               value={search}
@@ -203,12 +200,12 @@ export default function Page() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={adminTokens.input}
               placeholder="john@example.com or RPT-123"
             />
           </label>
 
-          <label className="flex flex-col text-sm font-medium text-slate-700">
+          <label className={`flex flex-col ${adminTokens.label}`}>
             CEFR
             <select
               value={cefr}
@@ -216,7 +213,7 @@ export default function Page() {
                 setCefr(e.target.value);
                 setPage(1);
               }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={adminTokens.select}
             >
               <option value="">All levels</option>
               <option value="A1">A1</option>
@@ -228,7 +225,7 @@ export default function Page() {
             </select>
           </label>
 
-          <label className="flex flex-col text-sm font-medium text-slate-700">
+          <label className={`flex flex-col ${adminTokens.label}`}>
             PDF status
             <select
               value={status}
@@ -236,7 +233,7 @@ export default function Page() {
                 setStatus(e.target.value);
                 setPage(1);
               }}
-              className="mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={adminTokens.select}
             >
               <option value="">All statuses</option>
               <option value="draft">draft</option>
@@ -246,26 +243,22 @@ export default function Page() {
           </label>
         </div>
 
-        <div className="text-sm text-slate-500">
+        <div className={`text-sm ${adminTokens.mutedText}`}>
           {loading ? "Loading reports..." : `${total} total reports`}
         </div>
       </div>
 
       {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <div className={adminTokens.errorNotice}>{error}</div>
       ) : null}
 
       {actionMessage ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          {actionMessage}
-        </div>
+        <div className={adminTokens.notice}>{actionMessage}</div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className={adminTokens.tableContainer}>
+        <table className={`min-w-full text-sm ${adminTokens.tableDivider}`}>
+          <thead className={`text-left ${adminTokens.tableHeader}`}>
             <tr>
               <th className="px-4 py-3">Report ID</th>
               <th className="px-4 py-3">Candidate Email</th>
@@ -277,10 +270,10 @@ export default function Page() {
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-100">
+          <tbody className={adminTokens.tableDivider}>
             {items.length === 0 && !loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={7} className={`px-4 py-6 text-center ${adminTokens.mutedText}`}>
                   No reports found.
                 </td>
               </tr>
@@ -290,10 +283,16 @@ export default function Page() {
               const reportId = item.reportId?.trim() ?? "";
               const recordId = item.recordId?.trim() ?? "";
               const canView = Boolean(recordId);
+              const generateClass = item.pdfUrl
+                ? adminTokens.buttonSecondary
+                : adminTokens.buttonPrimary;
 
               return (
-                <tr key={item.recordId} className="text-slate-700">
-                  <td className="px-4 py-3 font-medium text-slate-900">
+                <tr
+                  key={item.recordId}
+                  className={`${adminTokens.tableRow} ${adminTokens.tableRowHover}`}
+                >
+                  <td className="px-4 py-3 font-semibold text-white">
                     {reportId || recordId || "—"}
                   </td>
                   <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
@@ -304,16 +303,16 @@ export default function Page() {
                   </td>
                   <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <div className="flex flex-col items-end gap-2">
                       {canView ? (
                         <a
                           href={`/admin/reports/${encodeURIComponent(recordId)}`}
-                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          className={adminTokens.buttonSecondary}
                         >
                           View
                         </a>
                       ) : (
-                        <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
+                        <span className={adminTokens.buttonGhost}>
                           View
                         </span>
                       )}
@@ -322,7 +321,7 @@ export default function Page() {
                         type="button"
                         onClick={() => handleGeneratePdf(recordId)}
                         disabled={!canView}
-                        className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className={generateClass}
                       >
                         Generate PDF
                       </button>
@@ -332,12 +331,12 @@ export default function Page() {
                           href={item.pdfUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                          className={adminTokens.buttonPrimary}
                         >
                           Download
                         </a>
                       ) : (
-                        <span className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400">
+                        <span className={adminTokens.buttonGhost}>
                           Download
                         </span>
                       )}
@@ -350,7 +349,7 @@ export default function Page() {
         </table>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-slate-600">
+      <div className={`flex items-center justify-between text-sm ${adminTokens.mutedText}`}>
         <span>
           Page {page} of {totalPages}
         </span>
@@ -359,7 +358,7 @@ export default function Page() {
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
+            className={adminTokens.buttonSecondary}
           >
             Previous
           </button>
@@ -367,7 +366,7 @@ export default function Page() {
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
+            className={adminTokens.buttonSecondary}
           >
             Next
           </button>
