@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   getFirstReportByFormula,
@@ -8,10 +8,9 @@ import { normalizeReportId } from "@/src/lib/admin/report-id";
 import { getAdminFromRequest } from "@/src/lib/admin/session";
 
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ reportId: string }> },
-) {
-  const { reportId } = await params;
+  request: NextRequest,
+  context: { params: Promise<{ reportId: string }> },
+  const { reportId } = await context.params;
   const decoded = normalizeReportId(reportId);
   const normalized = decoded.trim();
   const isRecordId = normalized.startsWith("rec");
