@@ -303,7 +303,7 @@ export function buildReportPdfDocument(payload: {
               <View style={{ height: 10 }} />
               <InfoField label="Candidate email" value={candidateEmail} />
               <View style={{ height: 10 }} />
-              <InfoField label="Exam date" value={examDate} />
+              <InfoField label="Exam date" value={report.createdTime ? formatTimestamp(report.createdTime) : "—"} />
             </View>
           </View>
 
