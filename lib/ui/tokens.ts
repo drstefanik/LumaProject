@@ -9,8 +9,7 @@ export const adminTokens = {
   glowTopRight: "absolute -right-24 top-10 h-72 w-72 rounded-full bg-teal-400/30 blur-3xl",
   container:
     "relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-12 lg:gap-10 lg:py-16",
-  headerCard:
-    "flex flex-wrap items-start justify-between gap-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-indigo-900/40 backdrop-blur",
+  pageHeader: "rounded-2xl border border-white/10 bg-white/5 p-6 md:p-8 space-y-2",
   headerKicker: "text-xs font-semibold uppercase tracking-[0.2em] text-slate-400",
   headerTitle: "text-3xl font-black tracking-tight text-white sm:text-4xl",
   headerSubtitle: "text-sm text-slate-400",

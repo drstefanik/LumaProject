@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import AdminHeader from "@/app/admin/admin-header";
 import { adminTokens } from "@/lib/ui/tokens";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -14,7 +13,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </div>
 
       <div className={adminTokens.container}>
-        <AdminHeader />
         <main className={adminTokens.contentCard}>{children}</main>
       </div>
     </div>
