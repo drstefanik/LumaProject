@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
+import { adminTokens } from "@/lib/ui/tokens";
+
 type ReportResponse = {
   ok: boolean;
   report?: {
@@ -42,11 +44,11 @@ function splitLines(s: string) {
 
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-1 gap-1 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-3 sm:items-center">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-white/5 p-6 sm:grid-cols-3 sm:items-center">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </div>
-      <div className="sm:col-span-2 text-sm text-slate-900 break-words">
+      <div className="sm:col-span-2 text-sm text-slate-200 break-words">
         {value || "—"}
       </div>
     </div>
@@ -61,19 +63,19 @@ function SectionBox({
   items: string[] | null;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        {items && items.length ? (
+          <ul className="list-disc space-y-2 pl-5 text-sm text-slate-200">
+            {items.map((it, idx) => (
+              <li key={idx}>{it}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-400">—</p>
+        )}
       </div>
-      {items && items.length ? (
-        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-800">
-          {items.map((it, idx) => (
-            <li key={idx}>{it}</li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-slate-500">—</p>
-      )}
     </div>
   );
 }
@@ -177,79 +179,73 @@ export default function ReportDetailPage() {
   const reportIdValue = toText(fields["ReportID"]) || params.reportId || "";
 
   return (
-    <section className="mx-auto w-full max-w-5xl space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Report Detail</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Report ID: <span className="font-mono text-slate-700">{reportIdValue}</span>
+    <section className="mx-auto w-full max-w-5xl space-y-8 lg:space-y-10">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-2">
+          <span className="text-xs uppercase tracking-wide text-slate-400">
+            LUMA ADMIN
+          </span>
+          <h1 className="text-2xl font-semibold text-white">Admin / Report Detail</h1>
+          <p className="text-sm text-slate-400">
+            Report ID: <span className="font-mono text-slate-200">{reportIdValue}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin/reports"
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Back to reports
-          </Link>
-        </div>
+        <Link href="/admin/reports" className={adminTokens.buttonSecondary}>
+          Back to reports
+        </Link>
       </div>
 
       {status === "error" && error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+        <div className={adminTokens.errorNotice}>{error}</div>
+      ) : null}
+
+      {status === "loading" ? (
+        <div className="space-y-3">
+          <div className="h-4 w-40 rounded bg-white/10" />
+          <div className="h-4 w-72 rounded bg-white/10" />
+          <div className="h-24 w-full rounded bg-white/10" />
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        {status === "loading" ? (
-          <div className="space-y-3">
-            <div className="h-4 w-40 rounded bg-slate-100" />
-            <div className="h-4 w-72 rounded bg-slate-100" />
-            <div className="h-24 w-full rounded bg-slate-100" />
+      {status === "ready" && report ? (
+        <div className="space-y-8 lg:space-y-10">
+          {/* SUMMARY */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:gap-8">
+            <FieldRow label="Candidate Email" value={candidateEmail} />
+            <FieldRow label="Created At" value={formatDate(createdAt)} />
+            <FieldRow label="CEFR Level" value={cefr} />
+            <FieldRow label="Accent" value={accent} />
           </div>
-        ) : null}
 
-        {status === "ready" && report ? (
-          <div className="space-y-6">
-            {/* SUMMARY */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <FieldRow label="Candidate Email" value={candidateEmail} />
-              <FieldRow label="Created At" value={formatDate(createdAt)} />
-              <FieldRow label="CEFR Level" value={cefr} />
-              <FieldRow label="Accent" value={accent} />
-            </div>
+          {/* SECTIONS */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
+            <SectionBox title="Strengths" items={strengths} />
+            <SectionBox title="Weaknesses" items={weaknesses} />
+            <SectionBox title="Recommendations" items={recommendations} />
+          </div>
 
-            {/* SECTIONS */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <SectionBox title="Strengths" items={strengths} />
-              <SectionBox title="Weaknesses" items={weaknesses} />
-              <SectionBox title="Recommendations" items={recommendations} />
-            </div>
-
-            {/* OVERALL COMMENT */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-semibold text-slate-900">
-                Overall Comment
-              </h3>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">
+          {/* OVERALL COMMENT */}
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-white">Overall Comment</h3>
+              <p className="whitespace-pre-wrap text-sm text-slate-200">
                 {overallComment || "—"}
               </p>
             </div>
-
-            {/* RAW (collapsible style) */}
-            <details className="rounded-xl border border-slate-200 bg-white p-5">
-              <summary className="cursor-pointer text-sm font-semibold text-slate-900">
-                Raw fields (debug)
-              </summary>
-              <pre className="mt-3 overflow-x-auto rounded-md bg-slate-900 p-4 text-xs text-slate-100">
-                {JSON.stringify(report.fields, null, 2)}
-              </pre>
-            </details>
           </div>
-        ) : null}
-      </div>
+
+          {/* RAW (collapsible style) */}
+          <details className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <summary className="cursor-pointer text-sm font-semibold text-white">
+              Raw fields (debug)
+            </summary>
+            <pre className="mt-3 overflow-x-auto rounded-md bg-slate-900 p-4 text-xs text-slate-200">
+              {JSON.stringify(report.fields, null, 2)}
+            </pre>
+          </details>
+        </div>
+      ) : null}
     </section>
   );
 }

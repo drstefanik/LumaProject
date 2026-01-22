@@ -41,11 +41,13 @@ export default function AdminLoginPage() {
   return (
     <div className="flex justify-center">
       <div className={`w-full max-w-md ${adminTokens.card}`}>
-        <h2 className="text-2xl font-semibold text-white">Admin Sign In</h2>
-        <p className={`mt-2 text-sm ${adminTokens.mutedText}`}>
-          Enter your admin credentials to manage reports.
-        </p>
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold text-white">Admin Sign In</h2>
+          <p className={`text-sm ${adminTokens.mutedText}`}>
+            Enter your admin credentials to manage reports.
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="mt-6 space-y-6">
           <label className={`block ${adminTokens.label}`}>
             Email
             <input

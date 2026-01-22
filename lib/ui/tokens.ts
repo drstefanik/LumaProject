@@ -7,29 +7,30 @@ export const adminTokens = {
   glowBottomCenter:
     "absolute bottom-0 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-indigo-500/30 blur-3xl",
   glowTopRight: "absolute -right-24 top-10 h-72 w-72 rounded-full bg-teal-400/30 blur-3xl",
-  container: "relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-12 lg:py-16",
+  container:
+    "relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-12 lg:gap-10 lg:py-16",
   headerCard:
-    "flex flex-wrap items-start justify-between gap-6 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-indigo-900/40 backdrop-blur",
-  headerKicker: "text-xs font-semibold uppercase tracking-[0.2em] text-sky-200",
-  headerTitle: "text-3xl font-black tracking-tight text-slate-50 sm:text-4xl",
-  headerSubtitle: "text-sm text-slate-300",
+    "flex flex-wrap items-start justify-between gap-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-indigo-900/40 backdrop-blur",
+  headerKicker: "text-xs font-semibold uppercase tracking-[0.2em] text-slate-400",
+  headerTitle: "text-3xl font-black tracking-tight text-white sm:text-4xl",
+  headerSubtitle: "text-sm text-slate-400",
   contentCard:
-    "rounded-3xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/20 backdrop-blur",
+    "rounded-3xl border border-white/10 bg-white/5 p-8 shadow-xl shadow-black/20 backdrop-blur",
   filterCard:
-    "rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/20 backdrop-blur",
+    "rounded-2xl border border-white/10 bg-white/5 p-6 shadow-inner shadow-black/20 backdrop-blur",
   card:
     "rounded-2xl border border-white/10 bg-white/5 p-6 shadow-inner shadow-black/20 backdrop-blur",
-  label: "text-sm font-semibold text-slate-200",
-  mutedText: "text-slate-300",
+  label: "text-xs font-semibold uppercase tracking-wide text-slate-400",
+  mutedText: "text-slate-400",
   input:
     "mt-1 rounded-xl border border-white/15 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400/60",
   select:
     "mt-1 rounded-xl border border-white/15 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400/60",
   tableContainer:
     "overflow-x-auto rounded-2xl border border-white/10 bg-white/5 shadow-inner shadow-black/20 backdrop-blur",
-  tableHeader: "bg-slate-900/60 text-xs font-semibold uppercase tracking-wide text-slate-300",
+  tableHeader: "bg-slate-900/60 text-xs font-semibold uppercase tracking-wide text-slate-400",
   tableDivider: "divide-y divide-white/10",
-  tableRow: "text-slate-100",
+  tableRow: "text-slate-200",
   tableRowHover: "hover:bg-white/5",
   buttonPrimary:
     "inline-flex items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-sky-500/25 transition hover:-translate-y-0.5 hover:bg-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/60 disabled:cursor-not-allowed disabled:opacity-50",
