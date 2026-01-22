@@ -38,11 +38,11 @@ export default function AdminInvitesPage() {
   };
 
   return (
-    <section className="space-y-6">
-      <form onSubmit={handleSubmit} className={`space-y-4 ${adminTokens.card}`}>
-        <div>
+    <section className="space-y-8 lg:space-y-10">
+      <form onSubmit={handleSubmit} className={`space-y-6 ${adminTokens.card}`}>
+        <div className="space-y-2">
           <h2 className="text-2xl font-semibold text-white">Invite Admin</h2>
-          <p className={`mt-2 text-sm ${adminTokens.mutedText}`}>
+          <p className={`text-sm ${adminTokens.mutedText}`}>
             Generate a one-time OTP for a new admin account.
           </p>
         </div>

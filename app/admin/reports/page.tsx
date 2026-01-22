@@ -189,8 +189,10 @@ export default function Page() {
   ======================= */
 
   return (
-    <section className="space-y-6">
-      <div className={`flex flex-col gap-4 md:flex-row md:items-end md:justify-between ${adminTokens.filterCard}`}>
+    <section className="space-y-8 lg:space-y-10">
+      <div
+        className={`flex flex-col gap-6 md:flex-row md:items-end md:justify-between ${adminTokens.filterCard}`}
+      >
         <div className="flex flex-1 flex-col gap-3 md:flex-row">
           <label className={`flex w-full flex-col ${adminTokens.label}`}>
             Search by email or Report ID
@@ -260,20 +262,23 @@ export default function Page() {
         <table className={`min-w-full text-sm ${adminTokens.tableDivider}`}>
           <thead className={`text-left ${adminTokens.tableHeader}`}>
             <tr>
-              <th className="px-4 py-3">Report ID</th>
-              <th className="px-4 py-3">Candidate Email</th>
-              <th className="px-4 py-3">CEFR Level</th>
-              <th className="px-4 py-3">Accent</th>
-              <th className="px-4 py-3">Created At</th>
-              <th className="px-4 py-3">PDF Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+              <th className="px-4 py-4">Report ID</th>
+              <th className="px-4 py-4">Candidate Email</th>
+              <th className="px-4 py-4">CEFR Level</th>
+              <th className="px-4 py-4">Accent</th>
+              <th className="px-4 py-4">Created At</th>
+              <th className="px-4 py-4">PDF Status</th>
+              <th className="px-4 py-4 text-right">Actions</th>
             </tr>
           </thead>
 
           <tbody className={adminTokens.tableDivider}>
             {items.length === 0 && !loading ? (
               <tr>
-                <td colSpan={7} className={`px-4 py-6 text-center ${adminTokens.mutedText}`}>
+                <td
+                  colSpan={7}
+                  className={`px-4 py-6 text-center ${adminTokens.mutedText}`}
+                >
                   No reports found.
                 </td>
               </tr>
@@ -292,17 +297,17 @@ export default function Page() {
                   key={item.recordId}
                   className={`${adminTokens.tableRow} ${adminTokens.tableRowHover}`}
                 >
-                  <td className="px-4 py-3 font-semibold text-white">
+                  <td className="px-4 py-4 font-semibold text-white">
                     {reportId || recordId || "—"}
                   </td>
-                  <td className="px-4 py-3">{item.candidateEmail ?? "—"}</td>
-                  <td className="px-4 py-3">{item.cefrLevel ?? "—"}</td>
-                  <td className="px-4 py-3">{item.accent ?? "—"}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-4">{item.candidateEmail ?? "—"}</td>
+                  <td className="px-4 py-4">{item.cefrLevel ?? "—"}</td>
+                  <td className="px-4 py-4">{item.accent ?? "—"}</td>
+                  <td className="px-4 py-4">
                     {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}
                   </td>
-                  <td className="px-4 py-3">{item.pdfStatus ?? "—"}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-4">{item.pdfStatus ?? "—"}</td>
+                  <td className="px-4 py-4 text-right">
                     <div className="flex flex-col items-end gap-2">
                       {canView ? (
                         <a
