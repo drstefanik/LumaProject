@@ -1,19 +1,22 @@
 import type { ReactNode } from "react";
 
-import LogoutButton from "@/app/admin/logout-button";
+import AdminHeader from "@/app/admin/admin-header";
+import { adminTokens } from "@/lib/ui/tokens";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <span className="text-lg font-semibold">LUMA Admin</span>
-          <LogoutButton />
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-6xl px-6 py-8">
-        {children}
-      </main>
+    <div className={adminTokens.page}>
+      <div className={adminTokens.backgroundLayer}>
+        <div className={adminTokens.backgroundGradient} />
+        <div className={adminTokens.glowTopLeft} />
+        <div className={adminTokens.glowBottomCenter} />
+        <div className={adminTokens.glowTopRight} />
+      </div>
+
+      <div className={adminTokens.container}>
+        <AdminHeader />
+        <main className={adminTokens.contentCard}>{children}</main>
+      </div>
     </div>
   );
 }
