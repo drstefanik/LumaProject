@@ -32,6 +32,12 @@ type EvaluationPayload = {
   };
 };
 
+type ReportMetaPayload = {
+  transcriptUrl?: string;
+  complianceStopReason?: string;
+  liveTranscriptIncident?: string;
+};
+
 function validatePayload(body: any) {
   const { candidate, evaluation } = body || {};
 
@@ -168,6 +174,18 @@ export async function POST(req: NextRequest) {
 
     const candidate = body.candidate as CandidatePayload;
     const evaluation = body.evaluation as EvaluationPayload;
+    const meta = body as ReportMetaPayload;
+
+    const transcriptUrl =
+      typeof meta.transcriptUrl === "string" ? meta.transcriptUrl : undefined;
+    const complianceStopReason =
+      typeof meta.complianceStopReason === "string"
+        ? meta.complianceStopReason
+        : undefined;
+    const liveTranscriptIncident =
+      typeof meta.liveTranscriptIncident === "string"
+        ? meta.liveTranscriptIncident
+        : undefined;
 
     // normalizziamo: se il frontend non ha parsed, ci proviamo qui dal rawJson
     let normalizedParsed = evaluation.parsed;
@@ -217,6 +235,9 @@ export async function POST(req: NextRequest) {
         recommendations: normalizedEvaluation.parsed?.recommendations,
         overallComment: normalizedEvaluation.parsed?.overall_comment,
         rawJson: stringifyEvaluation(normalizedEvaluation),
+        transcriptUrl,
+        complianceStopReason,
+        liveTranscriptIncident,
       };
 
       console.log("[Airtable] LUMA report fields", airtablePayload);

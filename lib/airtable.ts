@@ -42,6 +42,9 @@ type LumaReportRecord = {
   recommendations?: string[] | string;
   overallComment?: string;
   rawJson: string;
+  transcriptUrl?: string;
+  complianceStopReason?: string;
+  liveTranscriptIncident?: string;
 };
 
 export async function saveLumaReport(record: LumaReportRecord) {
@@ -60,6 +63,9 @@ export async function saveLumaReport(record: LumaReportRecord) {
       : record.recommendations ?? null,
     OverallComment: record.overallComment ?? null,
     RawEvaluationText: record.rawJson,
+    TranscriptUrl: record.transcriptUrl ?? null,
+    ComplianceStopReason: record.complianceStopReason ?? null,
+    LiveTranscriptIncident: record.liveTranscriptIncident ?? null,
   };
 
   console.log("[Airtable] LUMA report fields", fields);

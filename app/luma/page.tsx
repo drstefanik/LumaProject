@@ -3,6 +3,7 @@
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { franc } from "franc-min";
 import {
   autoUpdate,
   flip,
@@ -37,6 +38,53 @@ type ReportState = {
   airtableId?: string | null;
   meta?: { cefrLevel?: string | null; globalScore?: number | null };
 };
+
+const LIVE_TRANSCRIPT_WINDOW = 600;
+
+function sanitizeTranscriptSample(text: string) {
+  return text
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\d+/g, " ")
+    .replace(/[^\p{L}\p{N}\s'.-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyEnglish(windowText: string) {
+  if (windowText.length < 40) return true;
+
+  const cleaned = sanitizeTranscriptSample(windowText);
+  if (!cleaned) return true;
+
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length < 4) return true;
+
+  const sample = cleaned.slice(-400);
+  if (sample.length < 20) return true;
+
+  return franc(sample, { minLength: 20 }) === "eng";
+}
+
+function containsForbiddenFeedback(windowText: string) {
+  const cleaned = sanitizeTranscriptSample(windowText).toLowerCase();
+  if (!cleaned) return false;
+
+  if (cleaned.includes("cefr")) return true;
+  if (/\b(a1|a2|b1|b2|c1|c2)\b/.test(cleaned)) return true;
+  if (cleaned.includes("your level") || cleaned.includes("level is"))
+    return true;
+  if (/\bscore\b/.test(cleaned) || /\bband\b/.test(cleaned)) return true;
+  if (/\bpass\b/.test(cleaned) || /\bfail\b/.test(cleaned)) return true;
+  if (
+    cleaned.includes("the result") ||
+    cleaned.includes("your result") ||
+    cleaned.includes("result will")
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 const NATIVE_LANGUAGES = [
   "Afar",
@@ -449,6 +497,7 @@ export default function LumaSpeakingTestPage() {
   const [report, setReport] = useState<ReportState | null>(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [candidateId, setCandidateId] = useState<string | null>(null);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
 
   // candidate form
   const [firstName, setFirstName] = useState("");
@@ -472,6 +521,15 @@ export default function LumaSpeakingTestPage() {
 
   const reportResponseIdRef = useRef<string | null>(null);
   const evaluationBufferRef = useRef<string>("");
+  const liveTranscriptBufferRef = useRef<string>("");
+  const complianceTriggeredRef = useRef<boolean>(false);
+  const complianceStopMetaRef = useRef<{
+    reason: "NON_ENGLISH" | "FORBIDDEN_FEEDBACK";
+    snippet: string;
+    atIso: string;
+  } | null>(null);
+  const transcriptUploadPromiseRef = useRef<Promise<string | null> | null>(null);
+  const transcriptUrlRef = useRef<string | null>(null);
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
 
@@ -523,6 +581,85 @@ export default function LumaSpeakingTestPage() {
     }
   }
 
+  function muteAudioImmediate() {
+    try {
+      if (audioRef.current) {
+        audioRef.current.muted = true;
+      }
+    } catch (error) {
+      console.warn("[LUMA] Failed to mute audio immediately", error);
+    }
+  }
+
+  function stopRemoteAudioTracks() {
+    const stream = audioRef.current?.srcObject;
+    if (stream && "getTracks" in stream) {
+      (stream as MediaStream).getTracks().forEach((track) => track.stop());
+    }
+    if (audioRef.current) {
+      audioRef.current.srcObject = null;
+    }
+  }
+
+  function queueTranscriptUpload(reason?: string) {
+    if (transcriptUploadPromiseRef.current) return;
+    const transcript = liveTranscriptBufferRef.current.trim();
+    if (!transcript) return;
+
+    transcriptUploadPromiseRef.current = (async () => {
+      try {
+        const resp = await fetch("/api/transcripts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportId: report?.airtableId ?? undefined,
+            candidateId: candidateId ?? undefined,
+            transcript,
+            kind: "live",
+            reason,
+          }),
+        });
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          console.warn("[LUMA] Transcript upload failed:", text);
+          return null;
+        }
+
+        const data = await resp.json();
+        transcriptUrlRef.current = data.url ?? null;
+        return transcriptUrlRef.current;
+      } catch (error) {
+        console.warn("[LUMA] Transcript upload error:", error);
+        return null;
+      }
+    })();
+  }
+
+  function triggerComplianceStop(
+    reason: "NON_ENGLISH" | "FORBIDDEN_FEEDBACK",
+    snippet: string
+  ) {
+    if (complianceTriggeredRef.current) return;
+    complianceTriggeredRef.current = true;
+    complianceStopMetaRef.current = {
+      reason,
+      snippet,
+      atIso: new Date().toISOString(),
+    };
+
+    const message =
+      reason === "NON_ENGLISH"
+        ? "Session terminated (Non-English detected)"
+        : "Session terminated (Forbidden feedback detected)";
+    setComplianceError(message);
+
+    muteAudioImmediate();
+    queueTranscriptUpload(reason);
+    console.warn("[LUMA] Compliance stop triggered:", reason, snippet);
+    hardCloseSession();
+  }
+
   async function startTest() {
     console.log("[LUMA] Start test clicked");
 
@@ -572,6 +709,12 @@ export default function LumaSpeakingTestPage() {
       setReport(null);
       setCandidateId(null);
       evaluationBufferRef.current = "";
+      liveTranscriptBufferRef.current = "";
+      complianceTriggeredRef.current = false;
+      complianceStopMetaRef.current = null;
+      transcriptUploadPromiseRef.current = null;
+      transcriptUrlRef.current = null;
+      setComplianceError(null);
       responseMetadataRef.current = {};
       reportResponseIdRef.current = null;
       setStatus("connecting");
@@ -716,6 +859,9 @@ export default function LumaSpeakingTestPage() {
           "VERY IMPORTANT: During the test you must NEVER give feedback, advice, or an opinion about the candidate's level or performance.",
           "Never mention CEFR levels, scores, 'beginner/intermediate/advanced', accent quality, or how well they did.",
           "If the candidate asks for feedback or a score, reply briefly: 'I’m not allowed to give feedback during the test. The result will be provided separately.' and then continue with the next exam question.",
+          "You must output English only. Never output any non-English sentence.",
+          "Do not mention CEFR, scores, level, result, pass/fail.",
+          "If asked for feedback, use the exact sentence above and then continue with the next question.",
           "You will later be asked by the system to produce a JSON evaluation. Do NOT talk about this with the candidate.",
           "You must always speak in English.",
           ...contextLines,
@@ -822,6 +968,48 @@ export default function LumaSpeakingTestPage() {
             } else {
               appendLog("Response created: " + message.response.id);
             }
+            return;
+          }
+
+          if (
+            statusRef.current === "active" &&
+            (message.type === "response.output_audio_transcript.delta" ||
+              message.type === "response.output_audio_transcript.append" ||
+              message.type === "response.output_audio_transcript.done")
+          ) {
+            let chunk = "";
+
+            if (typeof message.delta === "string") {
+              chunk = message.delta;
+            } else if (typeof message.text === "string") {
+              chunk = message.text;
+            } else if (
+              Array.isArray(message.content) &&
+              typeof message.content?.[0]?.text === "string"
+            ) {
+              chunk = message.content[0].text;
+            }
+
+            if (chunk) {
+              liveTranscriptBufferRef.current += chunk;
+            }
+
+            const windowText = liveTranscriptBufferRef.current.slice(
+              -LIVE_TRANSCRIPT_WINDOW
+            );
+
+            if (windowText) {
+              if (containsForbiddenFeedback(windowText)) {
+                triggerComplianceStop("FORBIDDEN_FEEDBACK", windowText);
+              } else if (!isLikelyEnglish(windowText)) {
+                triggerComplianceStop("NON_ENGLISH", windowText);
+              }
+            }
+
+            if (message.type === "response.output_audio_transcript.done") {
+              liveTranscriptBufferRef.current = "";
+            }
+
             return;
           }
 
@@ -1020,6 +1208,18 @@ export default function LumaSpeakingTestPage() {
     appendLog("submitReport called. Sending POST /api/report ...");
     appendLog("Submitting evaluation to /api/report...");
 
+    let uploadPromise = transcriptUploadPromiseRef.current;
+    if (!uploadPromise && liveTranscriptBufferRef.current.trim()) {
+      queueTranscriptUpload(complianceStopMetaRef.current?.reason);
+      uploadPromise = transcriptUploadPromiseRef.current;
+    }
+
+    let transcriptUrl: string | null = transcriptUrlRef.current;
+    if (!transcriptUrl && uploadPromise) {
+      transcriptUrl = await uploadPromise;
+      transcriptUrlRef.current = transcriptUrl ?? null;
+    }
+
     const payload = {
       candidate: {
         firstName: firstName.trim(),
@@ -1035,6 +1235,11 @@ export default function LumaSpeakingTestPage() {
         rawJson: finalReport.rawText,
         parsed: finalReport.parsed,
       },
+      transcriptUrl: transcriptUrl ?? undefined,
+      complianceStopReason: complianceStopMetaRef.current?.reason,
+      liveTranscriptIncident: complianceStopMetaRef.current?.snippet
+        ? complianceStopMetaRef.current.snippet.slice(-1000)
+        : undefined,
     };
 
     console.log("[LUMA] evaluation.rawJson:", payload.evaluation.rawJson);
@@ -1103,18 +1308,22 @@ export default function LumaSpeakingTestPage() {
   }
 
   function stopTest() {
+    muteAudioImmediate();
     appendLog("Stop pressed. Asking LUMA for final evaluation...");
     stopTimer();
     stopMicrophoneTracks();
+    queueTranscriptUpload(complianceStopMetaRef.current?.reason);
     requestFinalEvaluation();
   }
 
   function hardCloseSession() {
+    muteAudioImmediate();
     peerRef.current?.close();
     peerRef.current = null;
     dataChannelRef.current?.close();
     dataChannelRef.current = null;
     stopMicrophoneTracks();
+    stopRemoteAudioTracks();
     setStatus("idle");
     stopTimer();
     appendLog("Session closed.");
@@ -1159,11 +1368,11 @@ export default function LumaSpeakingTestPage() {
                     LUMA score pronunciation, rhythm, and coherence in real
                     time.
                   </p>
-                  <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-1 text-emerald-100 ring-1 ring-emerald-300/40">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                      {status === "idle"
-                        ? "Ready to start"
+                <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/15 px-3 py-1 text-emerald-100 ring-1 ring-emerald-300/40">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                    {status === "idle"
+                      ? "Ready to start"
                         : status === "connecting"
                         ? "Connecting to LUMA"
                         : status === "active"
@@ -1174,6 +1383,11 @@ export default function LumaSpeakingTestPage() {
                       ⏱ {minutes}:{seconds}
                     </span>
                   </div>
+                  {complianceError && (
+                    <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-xs font-semibold text-rose-100">
+                      {complianceError}
+                    </div>
+                  )}
                 </div>
 
                 {/* LUMA GIF listening field */}
