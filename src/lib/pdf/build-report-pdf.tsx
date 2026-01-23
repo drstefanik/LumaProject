@@ -220,10 +220,18 @@ export function buildReportPdfDocument(payload: {
     return s ? s : fallback;
   };
 
+  // Date only: YYYY-MM-DD (UTC)
+  const formatDateOnly = (iso?: string) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  };
+
+  // (kept for future use if you ever want date+time)
   const formatTimestamp = (iso?: string) => {
     if (!iso) return "";
-    // Keep it simple and stable server-side (no locale dependency)
-    // If iso is valid, show YYYY-MM-DD HH:mm
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -239,14 +247,12 @@ export function buildReportPdfDocument(payload: {
     label,
     value,
     mono,
-    right,
   }: {
     label: string;
     value: unknown;
     mono?: boolean;
-    right?: boolean;
   }) => (
-    <View style={[styles.infoBlock, right ? {} : {}]}>
+    <View style={styles.infoBlock}>
       <Text style={styles.label}>{label}</Text>
       <Text style={mono ? styles.valueMono : styles.value}>{safe(value)}</Text>
     </View>
@@ -303,13 +309,16 @@ export function buildReportPdfDocument(payload: {
               <View style={{ height: 10 }} />
               <InfoField label="Candidate email" value={candidateEmail} />
               <View style={{ height: 10 }} />
-              <InfoField label="Exam date" value={report.createdTime ? formatTimestamp(report.createdTime) : "—"} />
+              <InfoField label="Exam date" value={safe(examDate)} />
             </View>
           </View>
 
           <View style={styles.col}>
             <View style={styles.card}>
-              <InfoField label="Created at" value={report.createdTime ? formatTimestamp(report.createdTime) : "—"} />
+              <InfoField
+                label="Created at"
+                value={report.createdTime ? formatDateOnly(report.createdTime) : "—"}
+              />
               <View style={{ height: 10 }} />
               <Text style={styles.label}>CEFR</Text>
               <Text style={styles.value}>{safe(cefr)}</Text>
@@ -361,9 +370,7 @@ export function buildReportPdfDocument(payload: {
         <View style={styles.footer}>
           <Text>Report ID: {safe(reportId)}</Text>
           <Text
-            render={({ pageNumber, totalPages }) =>
-              `Page ${pageNumber} / ${totalPages}`
-            }
+            render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`}
           />
         </View>
       </Page>
