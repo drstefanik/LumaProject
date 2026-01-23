@@ -309,7 +309,7 @@ export function buildReportPdfDocument(payload: {
               <View style={{ height: 10 }} />
               <InfoField label="Candidate email" value={candidateEmail} />
               <View style={{ height: 10 }} />
-              <InfoField label="Exam date" value={safe(examDate)} />
+              <InfoField label="Exam date" value={report.createdTime ? formatDateOnly(report.createdTime) : "—"} />
             </View>
           </View>
 
@@ -317,7 +317,7 @@ export function buildReportPdfDocument(payload: {
             <View style={styles.card}>
               <InfoField
                 label="Created at"
-                value={report.createdTime ? formatDateOnly(report.createdTime) : "—"}
+                value={report.createdTime ? formatTimestamp(report.createdTime) : "—"}
               />
               <View style={{ height: 10 }} />
               <Text style={styles.label}>CEFR</Text>
