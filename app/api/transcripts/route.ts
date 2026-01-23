@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const fileName = `transcripts/${safeReportId}-${kind}-${Date.now()}.txt`;
 
     const blob = await put(fileName, transcript, {
-      access: "private",
+      access: "public",
       contentType: "text/plain; charset=utf-8",
     });
 
