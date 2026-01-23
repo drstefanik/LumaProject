@@ -228,16 +228,36 @@ export default function Page() {
                 }}
                 className={adminTokens.select}
               >
-                <option value="createdAt_desc">Created At (newest)</option>
-                <option value="createdAt_asc">Created At (oldest)</option>
-                <option value="reportId_asc">Report ID (A → Z)</option>
-                <option value="reportId_desc">Report ID (Z → A)</option>
-                <option value="candidateEmail_asc">Candidate Email (A → Z)</option>
-                <option value="candidateEmail_desc">Candidate Email (Z → A)</option>
-                <option value="cefr_asc">CEFR Level (A → Z)</option>
-                <option value="cefr_desc">CEFR Level (Z → A)</option>
-                <option value="pdfStatus_asc">PDF Status (A → Z)</option>
-                <option value="pdfStatus_desc">PDF Status (Z → A)</option>
+                <option className={adminTokens.selectOption} value="createdAt_desc">
+                  Created At (newest)
+                </option>
+                <option className={adminTokens.selectOption} value="createdAt_asc">
+                  Created At (oldest)
+                </option>
+                <option className={adminTokens.selectOption} value="reportId_asc">
+                  Report ID (A → Z)
+                </option>
+                <option className={adminTokens.selectOption} value="reportId_desc">
+                  Report ID (Z → A)
+                </option>
+                <option className={adminTokens.selectOption} value="candidateEmail_asc">
+                  Candidate Email (A → Z)
+                </option>
+                <option className={adminTokens.selectOption} value="candidateEmail_desc">
+                  Candidate Email (Z → A)
+                </option>
+                <option className={adminTokens.selectOption} value="cefr_asc">
+                  CEFR Level (A → Z)
+                </option>
+                <option className={adminTokens.selectOption} value="cefr_desc">
+                  CEFR Level (Z → A)
+                </option>
+                <option className={adminTokens.selectOption} value="pdfStatus_asc">
+                  PDF Status (A → Z)
+                </option>
+                <option className={adminTokens.selectOption} value="pdfStatus_desc">
+                  PDF Status (Z → A)
+                </option>
               </select>
             </label>
 
@@ -251,13 +271,27 @@ export default function Page() {
                 }}
                 className={adminTokens.select}
               >
-                <option value="">All levels</option>
-                <option value="A1">A1</option>
-                <option value="A2">A2</option>
-                <option value="B1">B1</option>
-                <option value="B2">B2</option>
-                <option value="C1">C1</option>
-                <option value="C2">C2</option>
+                <option className={adminTokens.selectOption} value="">
+                  All levels
+                </option>
+                <option className={adminTokens.selectOption} value="A1">
+                  A1
+                </option>
+                <option className={adminTokens.selectOption} value="A2">
+                  A2
+                </option>
+                <option className={adminTokens.selectOption} value="B1">
+                  B1
+                </option>
+                <option className={adminTokens.selectOption} value="B2">
+                  B2
+                </option>
+                <option className={adminTokens.selectOption} value="C1">
+                  C1
+                </option>
+                <option className={adminTokens.selectOption} value="C2">
+                  C2
+                </option>
               </select>
             </label>
 
@@ -271,10 +305,18 @@ export default function Page() {
                 }}
                 className={adminTokens.select}
               >
-                <option value="">All statuses</option>
-                <option value="draft">draft</option>
-                <option value="final">final</option>
-                <option value="pending">pending</option>
+                <option className={adminTokens.selectOption} value="">
+                  All statuses
+                </option>
+                <option className={adminTokens.selectOption} value="draft">
+                  draft
+                </option>
+                <option className={adminTokens.selectOption} value="final">
+                  final
+                </option>
+                <option className={adminTokens.selectOption} value="pending">
+                  pending
+                </option>
               </select>
             </label>
           </div>
