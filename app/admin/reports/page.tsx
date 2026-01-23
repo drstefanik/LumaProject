@@ -61,6 +61,7 @@ export default function Page() {
   const [search, setSearch] = useState("");
   const [cefr, setCefr] = useState("");
   const [status, setStatus] = useState("");
+  const [sort, setSort] = useState("createdAt_desc");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +92,7 @@ export default function Page() {
         if (search.trim()) params.set("q", search.trim());
         if (cefr) params.set("cefr", cefr);
         if (status) params.set("status", status);
+        if (sort) params.set("sort", sort);
         params.set("page", String(page));
         params.set("pageSize", String(PAGE_SIZE));
 
@@ -112,7 +114,7 @@ export default function Page() {
         if (!signal.aborted) setLoading(false);
       }
     },
-    [search, cefr, status, page],
+    [search, cefr, status, sort, page],
   );
 
   useEffect(() => {
@@ -214,6 +216,29 @@ export default function Page() {
                 className={adminTokens.input}
                 placeholder="john@example.com or RPT-123"
               />
+            </label>
+
+            <label className={`flex flex-col ${adminTokens.label}`}>
+              Sort by
+              <select
+                value={sort}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setPage(1);
+                }}
+                className={adminTokens.select}
+              >
+                <option value="createdAt_desc">Created At (newest)</option>
+                <option value="createdAt_asc">Created At (oldest)</option>
+                <option value="reportId_asc">Report ID (A → Z)</option>
+                <option value="reportId_desc">Report ID (Z → A)</option>
+                <option value="candidateEmail_asc">Candidate Email (A → Z)</option>
+                <option value="candidateEmail_desc">Candidate Email (Z → A)</option>
+                <option value="cefr_asc">CEFR Level (A → Z)</option>
+                <option value="cefr_desc">CEFR Level (Z → A)</option>
+                <option value="pdfStatus_asc">PDF Status (A → Z)</option>
+                <option value="pdfStatus_desc">PDF Status (Z → A)</option>
+              </select>
             </label>
 
             <label className={`flex flex-col ${adminTokens.label}`}>

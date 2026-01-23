@@ -299,6 +299,7 @@ export async function listReports(params: {
   q?: string | null;
   cefr?: string | null;
   status?: string | null;
+  sort?: string | null;
   page?: number | null;
   pageSize?: number | null;
 }) {
@@ -347,11 +348,72 @@ export async function listReports(params: {
     lookupMethod,
     totalRecords: records.length,
   });
-  const total = records.length;
+  const sortKey = params.sort ?? "createdAt_desc";
+  const sortedRecords = [...records].sort((a, b) => {
+    if (sortKey.startsWith("createdAt")) {
+      const getTimestamp = (record: AirtableRecord<ReportFields>) => {
+        const value = record.fields.CreatedAt ?? record.createdTime ?? null;
+        return value ? new Date(value).getTime() : null;
+      };
+      const aTime = getTimestamp(a);
+      const bTime = getTimestamp(b);
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return sortKey === "createdAt_asc" ? aTime - bTime : bTime - aTime;
+    }
+
+    const getText = (
+      record: AirtableRecord<ReportFields>,
+      key: "ReportID" | "CandidateEmail" | "CEFR_Level" | "PDFStatus",
+    ) => {
+      const value = record.fields[key];
+      return typeof value === "string" ? value.trim().toLowerCase() : null;
+    };
+
+    let aValue: string | null = null;
+    let bValue: string | null = null;
+
+    switch (sortKey) {
+      case "reportId_asc":
+      case "reportId_desc":
+        aValue = getText(a, "ReportID");
+        bValue = getText(b, "ReportID");
+        break;
+      case "candidateEmail_asc":
+      case "candidateEmail_desc":
+        aValue = getText(a, "CandidateEmail");
+        bValue = getText(b, "CandidateEmail");
+        break;
+      case "cefr_asc":
+      case "cefr_desc":
+        aValue = getText(a, "CEFR_Level");
+        bValue = getText(b, "CEFR_Level");
+        break;
+      case "pdfStatus_asc":
+      case "pdfStatus_desc":
+        aValue = getText(a, "PDFStatus");
+        bValue = getText(b, "PDFStatus");
+        break;
+      default:
+        return 0;
+    }
+
+    if (aValue == null && bValue == null) return 0;
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+
+    const comparison = aValue.localeCompare(bValue, undefined, { sensitivity: "base" });
+    return sortKey.endsWith("_desc") ? -comparison : comparison;
+  });
+
+  const total = sortedRecords.length;
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
 
-  const items: ReportListItem[] = records.slice(start, end).flatMap((record) => {
+  const items: ReportListItem[] = sortedRecords
+    .slice(start, end)
+    .flatMap((record) => {
     const recordId = typeof record.id === "string" ? record.id.trim() : "";
     if (!recordId) {
       return [];
