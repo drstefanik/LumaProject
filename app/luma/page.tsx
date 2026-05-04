@@ -18,8 +18,6 @@ import {
 
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
-const REALTIME_MODEL =
-  process.env.NEXT_PUBLIC_REALTIME_MODEL ?? "gpt-realtime";
 
 type ReportState = {
   rawText: string;
@@ -732,7 +730,6 @@ export default function LumaSpeakingTestPage() {
           type: "session.update",
           session: {
             type: "realtime",
-            model: REALTIME_MODEL,
             instructions: sessionInstructions,
             // VAD meno sensibile per non tagliare le domande
             turn_detection: {
@@ -945,7 +942,7 @@ export default function LumaSpeakingTestPage() {
 
       appendLog("Sending SDP offer to OpenAI Realtime API...");
       const callRes = await fetch(
-        "https://api.openai.com/v1/realtime/calls?model=gpt-realtime",
+        "https://api.openai.com/v1/realtime/calls",
         {
           method: "POST",
           headers: {

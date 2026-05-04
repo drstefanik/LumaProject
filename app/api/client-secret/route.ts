@@ -5,12 +5,12 @@ export const maxDuration = 300;
 
 export async function POST(_req: Request) {
   try {
-    const { OPENAI_API_KEY, OPENAI_REALTIME_MODEL } = process.env;
+    const { OPENAI_API_KEY } = process.env;
+    const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-1.5";
 
-    if (!OPENAI_API_KEY || !OPENAI_REALTIME_MODEL) {
+    if (!OPENAI_API_KEY) {
       console.error("Missing OpenAI env vars", {
         hasApiKey: !!OPENAI_API_KEY,
-        hasRealtimeModel: !!OPENAI_REALTIME_MODEL,
       });
       return NextResponse.json(
         { error: "Missing required OpenAI configuration" },
@@ -18,7 +18,7 @@ export async function POST(_req: Request) {
       );
     }
 
-    // 🔹 Chiamata diretta all’endpoint ufficiale delle Realtime sessions
+    console.log("[client-secret] Creating realtime session", { model: REALTIME_MODEL });
     const openaiRes = await fetch(
       "https://api.openai.com/v1/realtime/sessions",
       {
@@ -29,7 +29,7 @@ export async function POST(_req: Request) {
           "OpenAI-Beta": "realtime=v1",
         },
         body: JSON.stringify({
-          model: OPENAI_REALTIME_MODEL,
+          model: REALTIME_MODEL,
           // Per ora niente metadata / impostazioni extra.
           // Possiamo aggiungerle dopo quando tutto funziona.
         }),
@@ -46,7 +46,6 @@ export async function POST(_req: Request) {
       return NextResponse.json(
         {
           error: "Failed to create client secret",
-          details: errorText,
         },
         { status: 500 }
       );
@@ -69,7 +68,7 @@ export async function POST(_req: Request) {
       );
     }
 
-    return NextResponse.json({ client_secret: clientSecret });
+    return NextResponse.json({ client_secret: clientSecret, value: clientSecret, model: REALTIME_MODEL });
   } catch (err) {
     console.error("OpenAI client secret error:", err);
     return NextResponse.json(
