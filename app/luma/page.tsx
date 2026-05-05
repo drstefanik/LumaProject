@@ -468,6 +468,7 @@ export default function LumaSpeakingTestPage() {
   const micStreamRef = useRef<MediaStream | null>(null);
   const responseMetadataRef = useRef<Record<string, string | undefined>>({});
   const isModelSpeakingRef = useRef(false);
+  const hasSpeakingTimerStartedRef = useRef(false);
 
   const statusRef = useRef<Status>("idle");
 
@@ -485,6 +486,7 @@ export default function LumaSpeakingTestPage() {
     setTimeLeft(MAX_SPEAKING_SECONDS);
     setTimerRunning(false);
     setTimeExpired(false);
+    hasSpeakingTimerStartedRef.current = false;
   }
 
   function stopTimer() {
@@ -493,6 +495,7 @@ export default function LumaSpeakingTestPage() {
 
   function startSpeakingTimer() {
     setTimerRunning((prev) => prev || true);
+    hasSpeakingTimerStartedRef.current = true;
   }
 
   useEffect(() => {
@@ -748,21 +751,26 @@ export default function LumaSpeakingTestPage() {
           "You must always speak in English.",
           ...contextLines,
           "Keep the conversation flowing naturally and encourage the candidate to answer in full sentences.",
-          "Regola importante sul tempo:",
-          "- L’utente ha un tempo massimo di 180 secondi per parlare.",
-          "- Puoi ricordare brevemente all’inizio che ha 3 minuti.",
-          "- Non dire mai che può continuare oltre questo limite.",
-          "- Quando il sistema comunica che il tempo è scaduto, devi interrompere gentilmente la fase di speaking.",
-          "- Dopo il tempo scaduto, non fare nuove domande aperte.",
-          "- Passa direttamente a un breve feedback finale sulla performance dell’utente.",
-          "- Il blocco tecnico del microfono è gestito dall’applicazione, ma tu devi rispettare il limite nella conversazione.",
+          "Important timing rule:",
+          "- The user has a maximum of 180 seconds to speak.",
+          "- You may briefly remind the user at the beginning that they have 3 minutes.",
+          "- Never tell the user they can continue beyond this limit.",
+          "- When the system says the time is up, gently end the speaking phase.",
+          "- After the time is up, do not ask new open-ended questions.",
+          "- Move directly to brief final feedback on the user’s performance.",
+          "- The application handles microphone cutoff, but you must respect the limit conversationally.",
         ].join("\n");
       })();
 
       dc.onopen = () => {
         appendLog("Data channel open. Configuring LUMA session...");
         setStatus("active");
-        startSpeakingTimer();
+        if (
+          !hasSpeakingTimerStartedRef.current &&
+          micStreamRef.current?.getAudioTracks().some((track) => track.enabled)
+        ) {
+          startSpeakingTimer();
+        }
 
         const sessionUpdate = {
           type: "session.update",
@@ -995,7 +1003,7 @@ export default function LumaSpeakingTestPage() {
         const errorText = await callRes.text();
         appendLog("Failed to start realtime call: " + errorText);
         setStatus("idle");
-        stopTimer();
+        resetSpeakingTimer();
         return;
       }
 
@@ -1006,7 +1014,7 @@ export default function LumaSpeakingTestPage() {
       console.error(err);
       appendLog("Error: " + (err?.message || "unknown"));
       setStatus("idle");
-      stopTimer();
+      resetSpeakingTimer();
     }
   }
 
@@ -1029,7 +1037,7 @@ export default function LumaSpeakingTestPage() {
         type: "response.create",
         response: {
           instructions:
-            "Il tempo massimo di 180 secondi è scaduto. Avvisa brevemente l’utente che il tempo è terminato. Non fare altre domande aperte. Passa subito al feedback finale.",
+            "The maximum speaking time of 180 seconds has expired. Briefly inform the user that time is up. Do not ask further questions. Move directly to final feedback.",
         },
       };
       dc.send(JSON.stringify(event));
@@ -1248,7 +1256,7 @@ export default function LumaSpeakingTestPage() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-300">Tempo rimanente</span>
+                      <span className="text-slate-300">Time remaining</span>
                       <span className={isUrgent ? "font-bold text-red-400" : "text-slate-100"}>
                         {remainingMinutes}:{remainingSeconds}
                       </span>
@@ -1261,7 +1269,7 @@ export default function LumaSpeakingTestPage() {
                     </div>
                     {timeExpired && (
                       <p className="text-xs font-medium text-red-400">
-                        Tempo scaduto. Il microfono è stato disattivato.
+                        Time is up. Your microphone has been disabled.
                       </p>
                     )}
                   </div>
