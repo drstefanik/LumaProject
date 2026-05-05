@@ -441,9 +441,13 @@ function SearchableSelect({
 
 
 export default function LumaSpeakingTestPage() {
+  const MAX_SPEAKING_SECONDS = 180;
   const [status, setStatus] = useState<Status>("idle");
   const [log, setLog] = useState<string[]>([]);
   const [timer, setTimer] = useState<number>(0);
+  const [timeLeft, setTimeLeft] = useState<number>(MAX_SPEAKING_SECONDS);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timeExpired, setTimeExpired] = useState(false);
   const [report, setReport] = useState<ReportState | null>(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [candidateId, setCandidateId] = useState<string | null>(null);
@@ -461,7 +465,6 @@ export default function LumaSpeakingTestPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const responseMetadataRef = useRef<Record<string, string | undefined>>({});
   const isModelSpeakingRef = useRef(false);
@@ -478,17 +481,18 @@ export default function LumaSpeakingTestPage() {
     setLog((prev) => [...prev, `${new Date().toLocaleTimeString()} – ${msg}`]);
   }
 
-  function startTimer() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setTimer(0);
-    timerRef.current = setInterval(() => {
-      setTimer((t) => t + 1);
-    }, 1000);
+  function resetSpeakingTimer() {
+    setTimeLeft(MAX_SPEAKING_SECONDS);
+    setTimerRunning(false);
+    setTimeExpired(false);
   }
 
   function stopTimer() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = null;
+    setTimerRunning(false);
+  }
+
+  function startSpeakingTimer() {
+    setTimerRunning((prev) => prev || true);
   }
 
   useEffect(() => {
@@ -513,6 +517,31 @@ export default function LumaSpeakingTestPage() {
       stopTimer();
     };
   }, []);
+
+  useEffect(() => {
+    if (!timerRunning || timeExpired || status !== "active") return;
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerRunning, timeExpired, status]);
+
+  useEffect(() => {
+    if (timeLeft !== 0 || timeExpired) return;
+    handleSpeakingTimeExpired();
+  }, [timeLeft, timeExpired]);
+
+  useEffect(() => {
+    setTimer(MAX_SPEAKING_SECONDS - timeLeft);
+  }, [timeLeft, MAX_SPEAKING_SECONDS]);
 
   function stopMicrophoneTracks() {
     if (micStreamRef.current) {
@@ -569,6 +598,7 @@ export default function LumaSpeakingTestPage() {
 
       setReport(null);
       setCandidateId(null);
+      resetSpeakingTimer();
       evaluationBufferRef.current = "";
       responseMetadataRef.current = {};
       reportResponseIdRef.current = null;
@@ -718,13 +748,21 @@ export default function LumaSpeakingTestPage() {
           "You must always speak in English.",
           ...contextLines,
           "Keep the conversation flowing naturally and encourage the candidate to answer in full sentences.",
+          "Regola importante sul tempo:",
+          "- L’utente ha un tempo massimo di 180 secondi per parlare.",
+          "- Puoi ricordare brevemente all’inizio che ha 3 minuti.",
+          "- Non dire mai che può continuare oltre questo limite.",
+          "- Quando il sistema comunica che il tempo è scaduto, devi interrompere gentilmente la fase di speaking.",
+          "- Dopo il tempo scaduto, non fare nuove domande aperte.",
+          "- Passa direttamente a un breve feedback finale sulla performance dell’utente.",
+          "- Il blocco tecnico del microfono è gestito dall’applicazione, ma tu devi rispettare il limite nella conversazione.",
         ].join("\n");
       })();
 
       dc.onopen = () => {
         appendLog("Data channel open. Configuring LUMA session...");
         setStatus("active");
-        startTimer();
+        startSpeakingTimer();
 
         const sessionUpdate = {
           type: "session.update",
@@ -972,6 +1010,37 @@ export default function LumaSpeakingTestPage() {
     }
   }
 
+  function handleSpeakingTimeExpired() {
+    stopTimer();
+    setTimeExpired(true);
+    appendLog("Speaking time limit reached. Microphone disabled.");
+
+    if (micStreamRef.current) {
+      micStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = false;
+        track.stop();
+      });
+      micStreamRef.current = null;
+    }
+
+    const dc = dataChannelRef.current;
+    if (dc && dc.readyState === "open") {
+      const event = {
+        type: "response.create",
+        response: {
+          instructions:
+            "Il tempo massimo di 180 secondi è scaduto. Avvisa brevemente l’utente che il tempo è terminato. Non fare altre domande aperte. Passa subito al feedback finale.",
+        },
+      };
+      dc.send(JSON.stringify(event));
+      appendLog("LUMA notified that speaking time expired.");
+    } else {
+      appendLog("Data channel not open: unable to notify LUMA about timeout.");
+    }
+
+    requestFinalEvaluation();
+  }
+
   function requestFinalEvaluation() {
     appendLog("requestFinalEvaluation called.");
     const dc = dataChannelRef.current;
@@ -1114,11 +1183,17 @@ export default function LumaSpeakingTestPage() {
     stopMicrophoneTracks();
     setStatus("idle");
     stopTimer();
+    resetSpeakingTimer();
     appendLog("Session closed.");
   }
 
   const minutes = String(Math.floor(timer / 60)).padStart(2, "0");
   const seconds = String(timer % 60).padStart(2, "0");
+  const remainingMinutes = String(Math.floor(timeLeft / 60)).padStart(2, "0");
+  const remainingSeconds = String(timeLeft % 60).padStart(2, "0");
+  const speakingProgress =
+    ((MAX_SPEAKING_SECONDS - timeLeft) / MAX_SPEAKING_SECONDS) * 100;
+  const isUrgent = timeLeft <= 30;
 
   const isIdle = status === "idle";
   const isConnecting = status === "connecting";
@@ -1170,6 +1245,25 @@ export default function LumaSpeakingTestPage() {
                     <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-white ring-1 ring-white/20">
                       ⏱ {minutes}:{seconds}
                     </span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-300">Tempo rimanente</span>
+                      <span className={isUrgent ? "font-bold text-red-400" : "text-slate-100"}>
+                        {remainingMinutes}:{remainingSeconds}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className={`h-full transition-all ${isUrgent ? "bg-red-500" : "bg-sky-400"}`}
+                        style={{ width: `${Math.max(0, 100 - speakingProgress)}%` }}
+                      />
+                    </div>
+                    {timeExpired && (
+                      <p className="text-xs font-medium text-red-400">
+                        Tempo scaduto. Il microfono è stato disattivato.
+                      </p>
+                    )}
                   </div>
                 </div>
 

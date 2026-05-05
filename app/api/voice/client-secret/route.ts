@@ -19,6 +19,18 @@ export async function POST() {
       model: REALTIME_MODEL,
     });
 
+    const baseInstructions =
+      "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, keep responses concise, and evaluate spoken English proficiency while maintaining a natural conversation.";
+    const timeLimitInstructions = `
+Regola importante sul tempo:
+- L’utente ha un tempo massimo di 180 secondi per parlare.
+- Puoi ricordare brevemente all’inizio che ha 3 minuti.
+- Non dire mai che può continuare oltre questo limite.
+- Quando il sistema comunica che il tempo è scaduto, devi interrompere gentilmente la fase di speaking.
+- Dopo il tempo scaduto, non fare nuove domande aperte.
+- Passa direttamente a un breve feedback finale sulla performance dell’utente.
+- Il blocco tecnico del microfono è gestito dall’applicazione, ma tu devi rispettare il limite nella conversazione.`;
+
     const res = await fetch(
       "https://api.openai.com/v1/realtime/client_secrets",
       {
@@ -38,7 +50,7 @@ export async function POST() {
               },
             },
             instructions:
-              "You are LUMA, the Language Understanding Mastery Assistant of British Institutes. Speak clearly in English, be friendly and professional, keep responses concise, and evaluate spoken English proficiency while maintaining a natural conversation.",
+              `${baseInstructions}\n${timeLimitInstructions}`,
           },
         }),
       }
