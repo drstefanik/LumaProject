@@ -1141,9 +1141,11 @@ export default function LumaSpeakingTestPage() {
 
   async function submitReport(finalReport: ReportState) {
     const activeCandidateRecordId = getValidCandidateRecordId(candidateId);
-    if (!activeCandidateRecordId) {
-      setReportError("Cannot finalize the session: candidate record id is missing.");
-      appendLog("Cannot finalize report: invalid candidate record id.");
+    const candidateEmail = email.trim();
+    const useCompatibilityMode = !activeCandidateRecordId && !!candidateEmail;
+    if (!activeCandidateRecordId && !candidateEmail) {
+      setReportError("Cannot finalize the session: candidate email is missing.");
+      appendLog("Cannot finalize report: missing candidate session id and email.");
       setStatus("idle");
       return;
     }
@@ -1152,12 +1154,23 @@ export default function LumaSpeakingTestPage() {
     appendLog("submitReport called. Sending POST /api/report ...");
     appendLog("Submitting evaluation to /api/report...");
 
-    const payload = { sessionId: activeCandidateRecordId, finalize: true };
-    const finalizeUrl = `/api/speaking/sessions/${activeCandidateRecordId}/finalize`;
-    console.log("[LUMA] Finalize URL:", finalizeUrl);
+    const payload = useCompatibilityMode
+      ? {
+          candidateEmail,
+          rawText: finalReport.rawText,
+          parsed: finalReport.parsed,
+          transcript: transcriptRef.current,
+          finalize: true,
+          compatibilityMode: true,
+        }
+      : { sessionId: activeCandidateRecordId, finalize: true };
+    const requestUrl = useCompatibilityMode
+      ? "/api/report"
+      : `/api/speaking/sessions/${activeCandidateRecordId}/finalize`;
+    console.log("[LUMA] Report URL:", requestUrl);
 
     try {
-      const resp = await fetch(finalizeUrl, {
+      const resp = await fetch(requestUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1182,7 +1195,7 @@ export default function LumaSpeakingTestPage() {
         meta: saved.meta,
         airtableId: saved.airtableId ?? null,
       }));
-      appendLog("Report saved and formatted.");
+      appendLog(useCompatibilityMode ? "Report saved in compatibility mode." : "Report saved and formatted.");
     } catch (e: any) {
       const message = "Network error while generating the report. Please try again.";
       appendLog("Network error while saving report: " + (e?.message || "unknown"));
