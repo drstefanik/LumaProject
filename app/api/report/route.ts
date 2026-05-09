@@ -26,7 +26,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = typeof body?.parsed === "object" && body.parsed ? body.parsed : {};
+    const parsed =
+      (typeof body?.evaluation === "object" && body.evaluation) ||
+      (typeof body?.finalReport === "object" && body.finalReport) ||
+      (typeof body?.parsed === "object" && body.parsed) ||
+      {};
     const asArray = (value: unknown) => Array.isArray(value) && value.length > 0 ? value : ["insufficient_evidence"];
     const asText = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : "insufficient_evidence";
     const cefr = typeof parsed.cefr_level === "string" && parsed.cefr_level.trim() ? parsed.cefr_level.trim() : "insufficient_evidence";
@@ -45,14 +49,22 @@ export async function POST(req: NextRequest) {
       reportVersion: "v1-compat",
       reportSource: "legacy_api_candidate_email",
       transcriptIntegrity: transcript.length > 0 ? "ok" : "insufficient_evidence",
-      rawJson: typeof body?.rawText === "string" && body.rawText.trim() ? body.rawText : JSON.stringify(parsed),
+      rawJson:
+        (typeof body?.rawEvaluationText === "string" && body.rawEvaluationText.trim() && body.rawEvaluationText) ||
+        (typeof body?.rawText === "string" && body.rawText.trim() && body.rawText) ||
+        JSON.stringify(parsed),
       finalizedTranscriptJson: JSON.stringify({ transcript }),
     });
 
     return NextResponse.json({
       success: true,
       airtableId,
-      reportText: typeof body?.rawText === "string" ? body.rawText : "",
+      reportText:
+        typeof body?.rawEvaluationText === "string"
+          ? body.rawEvaluationText
+          : typeof body?.rawText === "string"
+            ? body.rawText
+            : "",
       meta: {
         cefrLevel: cefr,
       },
