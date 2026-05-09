@@ -1004,14 +1004,11 @@ export default function LumaSpeakingTestPage() {
                     .join("")
                 : "";
 
-              const fullText = (
-                outputText ||
-                structuredText ||
-                evaluationBufferRef.current
-              ).trim();
+              const fullText = (outputText || structuredText).trim();
+              const deltaBuffer = evaluationBufferRef.current.trim();
               evaluationBufferRef.current = "";
               reportResponseIdRef.current = null;
-              await processFinalReport(fullText);
+              await processFinalReport(fullText, deltaBuffer);
             } else {
               appendLog("Response finished.");
             }
@@ -1243,40 +1240,141 @@ export default function LumaSpeakingTestPage() {
     }
   }
 
-  async function processFinalReport(text: string) {
-    const trimmed = text.trim();
-    appendLog("processFinalReport called. Raw length: " + trimmed.length);
-    console.log("[LUMA] Raw evaluation text:", trimmed);
+  function safeExtractJson(text: string): string | null {
+    if (!text) return null;
+    const start = text.indexOf("{");
+    if (start < 0) return null;
 
-    if (!trimmed) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let bestCandidate: string | null = null;
+
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === "\\") {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (ch === "{") depth += 1;
+      if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          bestCandidate = text.slice(start, i + 1);
+        }
+        if (depth < 0) break;
+      }
+    }
+    return bestCandidate;
+  }
+
+  function normalizeJsonText(raw: string): string {
+    return raw
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+  }
+
+  function repairJsonCandidate(raw: string): string {
+    return raw
+      .replace(/,\s*([}\]])/g, "$1")
+      .replace(/\r?\n/g, " ")
+      .trim();
+  }
+
+  async function processFinalReport(
+    text: string,
+    deltaBufferText: string = ""
+  ) {
+    const trimmed = text.trim();
+    const deltaTrimmed = deltaBufferText.trim();
+    appendLog(
+      "processFinalReport called. Raw length: " +
+        trimmed.length +
+        ", delta length: " +
+        deltaTrimmed.length
+    );
+    console.log("[LUMA] Raw realtime output:", {
+      outputText: trimmed,
+      deltaBuffer: deltaTrimmed,
+    });
+
+    if (!trimmed && !deltaTrimmed) {
       appendLog("No written evaluation received from LUMA.");
       setStatus("active");
       return;
     }
 
     let parsed: ReportState["parsed"] | undefined;
-    const tryExtractJson = (raw: string) => {
-      const firstBrace = raw.indexOf("{");
-      const lastBrace = raw.lastIndexOf("}");
-      if (firstBrace >= 0 && lastBrace > firstBrace) {
-        const candidate = raw.slice(firstBrace, lastBrace + 1);
-        return JSON.parse(candidate);
-      }
-      return null;
-    };
+    let extractedCandidate = "";
+    let parseErrorMessage = "";
 
     try {
-      parsed = JSON.parse(trimmed);
+      // A) Structured output text first.
+      const normalizedStructured = normalizeJsonText(trimmed);
+      extractedCandidate = safeExtractJson(normalizedStructured) || normalizedStructured;
+      parsed = JSON.parse(extractedCandidate);
     } catch (error) {
-      appendLog("Primary JSON parse failed. Trying JSON extraction from buffer...");
       try {
-        parsed = tryExtractJson(trimmed) || undefined;
-      } catch (extractErr) {
-        console.warn("[LUMA] Failed to extract evaluation JSON", extractErr);
+        // B) Extract from structured text.
+        const extractedFromFull = safeExtractJson(normalizeJsonText(trimmed));
+        if (extractedFromFull) {
+          extractedCandidate = extractedFromFull;
+          parsed = JSON.parse(extractedFromFull);
+        }
+      } catch (errB: any) {
+        parseErrorMessage = errB?.message || String(errB);
+      }
+
+      if (!parsed) {
+        try {
+          // C) Extract from concatenated deltas.
+          const extractedFromDelta = safeExtractJson(
+            normalizeJsonText(deltaTrimmed)
+          );
+          if (extractedFromDelta) {
+            extractedCandidate = extractedFromDelta;
+            parsed = JSON.parse(extractedFromDelta);
+          }
+        } catch (errC: any) {
+          parseErrorMessage = errC?.message || String(errC);
+        }
+      }
+
+      if (!parsed) {
+        try {
+          // D) Repair likely malformed JSON then parse.
+          const repairTarget =
+            extractedCandidate ||
+            safeExtractJson(normalizeJsonText(trimmed)) ||
+            safeExtractJson(normalizeJsonText(deltaTrimmed)) ||
+            normalizeJsonText(trimmed || deltaTrimmed);
+          const repaired = repairJsonCandidate(repairTarget);
+          extractedCandidate = repaired;
+          parsed = repaired ? JSON.parse(repaired) : undefined;
+        } catch (errD: any) {
+          parseErrorMessage = errD?.message || String(errD);
+        }
       }
     }
 
-    console.log("[LUMA] Parsed evaluation object:", parsed);
+    console.log("[LUMA] Extracted JSON candidate:", extractedCandidate);
+    if (parseErrorMessage) {
+      console.warn("[LUMA] JSON parse error:", parseErrorMessage);
+    }
+    console.log("[LUMA] Final parsed evaluation object:", parsed);
 
     if (!parsed) {
       const parseMessage =
