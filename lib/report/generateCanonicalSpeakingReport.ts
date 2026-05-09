@@ -72,6 +72,13 @@ function validateCanonicalReport(report: CanonicalReport, learnerTurns: Transcri
   return null;
 }
 
+function hasCanonicalEvidence(report: CanonicalReport) {
+  const quoteCount = report.evidence?.learner_quotes?.length ?? 0;
+  const coverage = Object.values(report.evidence?.rubric_coverage ?? {});
+  const hasCoverage = coverage.some((value) => Array.isArray(value) && value.length > 0);
+  return quoteCount > 0 || hasCoverage;
+}
+
 export async function generateCanonicalSpeakingReport(sessionId: string) {
   const transcript = (await getSpeakingEvents(sessionId)).map((e) => ({ role: e.role, text: e.text, atMs: Date.parse(e.createdAt), isFinal: e.isFinal, id: e.id })) as TranscriptTurn[];
   const candidate: CandidatePayload = { firstName: "Candidate", lastName: sessionId, email: `${sessionId}@session.local` };
@@ -82,24 +89,97 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
   console.log("[generateCanonicalSpeakingReport] integrity metrics", { sessionId, learnerUtterances: learnerTurns.length, assistantUtterances: assistantTurns.length, transcriptFinalized: true, learnerWordCount });
 
   if (!learnerTurns.length || learnerWordCount < MIN_LEARNER_WORD_COUNT) {
+    await saveLumaReport({
+      reportId: `RPT-${sessionId}-${Date.now()}`,
+      candidateId: sessionId,
+      email: candidate.email!,
+      reportStatus: "incomplete",
+      blockedReason: "insufficient_canonical_learner_evidence",
+      reportGeneratedAt: new Date().toISOString(),
+      reportVersion: "v1",
+      reportSource: "speaking_finalize_api",
+      learnerWordCount,
+      learnerTurnCount: learnerTurns.length,
+      assistantTurnCount: assistantTurns.length,
+      transcriptIntegrity: "insufficient_evidence",
+      technicalStatus: "ok",
+      canonicalReportJson: JSON.stringify({ reason: "insufficient_canonical_learner_evidence" }),
+      integrityLogJson: JSON.stringify({ checks: ["minimum_word_count"], blockedReason: "insufficient_canonical_learner_evidence" }),
+      reportIsGrounded: false,
+      hallucinationRiskFlag: true,
+      rawJson: JSON.stringify({ reason: "insufficient_canonical_learner_evidence" }),
+    });
     return { ok: false as const, status: 422, payload: { success: false, incomplete: true, message: "The session did not contain enough learner speech to generate a reliable report.", reason: "insufficient_canonical_learner_evidence" } };
   }
 
   const canonicalReport = await generateCanonicalReport(candidate, learnerTurns, assistantTurns);
   const blockReason = validateCanonicalReport(canonicalReport, learnerTurns);
   if (blockReason) {
+    await saveLumaReport({
+      reportId: `RPT-${sessionId}-${Date.now()}`,
+      candidateId: sessionId,
+      email: candidate.email!,
+      reportStatus: "blocked",
+      blockedReason: blockReason,
+      reportGeneratedAt: new Date().toISOString(),
+      reportVersion: "v1",
+      reportSource: "speaking_finalize_api",
+      learnerWordCount,
+      learnerTurnCount: learnerTurns.length,
+      assistantTurnCount: assistantTurns.length,
+      confidenceScore: canonicalReport.confidence,
+      transcriptIntegrity: "failed_validation",
+      technicalStatus: "ok",
+      canonicalReportJson: JSON.stringify(canonicalReport),
+      evidenceMapJson: JSON.stringify(canonicalReport.evidence ?? {}),
+      rubricCoverageJson: JSON.stringify(canonicalReport.evidence?.rubric_coverage ?? {}),
+      evidenceQuotesJson: JSON.stringify(canonicalReport.evidence?.learner_quotes ?? []),
+      integrityLogJson: JSON.stringify({ checks: ["evidence_validation"], blockedReason: blockReason }),
+      reportIsGrounded: false,
+      hallucinationRiskFlag: true,
+      rawJson: JSON.stringify(canonicalReport),
+    });
     console.log("[generateCanonicalSpeakingReport] blocked", { sessionId, blockReason, confidence: canonicalReport.confidence });
     return { ok: false as const, status: 422, payload: { success: false, incomplete: true, message: "The session did not contain enough reliable evidence to generate a final report.", reason: blockReason } };
   }
 
+  const hasEvidence = hasCanonicalEvidence(canonicalReport);
+  const safeCefrLevel = hasEvidence ? canonicalReport.cefr_level ?? undefined : undefined;
+  const safeAccent: string = "insufficient_evidence";
+  const safeNarrative = hasEvidence;
   const reportText = JSON.stringify(canonicalReport, null, 2);
+  const reportId = `RPT-${sessionId}-${Date.now()}`;
   const airtableId = await saveLumaReport({
+    reportId,
+    candidateId: sessionId,
     email: candidate.email!,
-    cefrLevel: canonicalReport.cefr_level ?? undefined,
-    strengths: canonicalReport.strengths,
-    weaknesses: canonicalReport.weaknesses,
-    recommendations: canonicalReport.recommendations,
-    overallComment: canonicalReport.overall_comment,
+    cefrLevel: safeCefrLevel,
+    accent: safeAccent,
+    strengths: safeNarrative ? canonicalReport.strengths : [],
+    weaknesses: safeNarrative ? canonicalReport.weaknesses : [],
+    recommendations: safeNarrative ? canonicalReport.recommendations : [],
+    overallComment: safeNarrative ? canonicalReport.overall_comment : "",
+    reportStatus: hasEvidence ? "generated" : "incomplete",
+    reportGeneratedAt: new Date().toISOString(),
+    reportVersion: "v1",
+    reportSource: "speaking_finalize_api",
+    learnerWordCount,
+    learnerTurnCount: learnerTurns.length,
+    assistantTurnCount: assistantTurns.length,
+    confidenceScore: canonicalReport.confidence,
+    transcriptIntegrity: "passed",
+    technicalStatus: "ok",
+    canonicalReportJson: reportText,
+    evidenceMapJson: JSON.stringify(canonicalReport.evidence ?? {}),
+    rubricCoverageJson: JSON.stringify(canonicalReport.evidence?.rubric_coverage ?? {}),
+    evidenceQuotesJson: JSON.stringify(canonicalReport.evidence?.learner_quotes ?? []),
+    finalizedTranscriptJson: JSON.stringify({ learner: learnerTurns, assistant: assistantTurns }),
+    reportIsGrounded: hasEvidence,
+    hallucinationRiskFlag: !hasEvidence || canonicalReport.confidence === "low",
+    integrityLogJson: JSON.stringify({
+      checks: ["final_learner_turns", "minimum_word_count", "evidence_validation"],
+      blockedReason: null,
+    }),
     rawJson: reportText,
   });
 

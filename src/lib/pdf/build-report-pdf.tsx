@@ -276,14 +276,23 @@ export function buildReportPdfDocument(payload: {
 
   const reportId = (fields as any).ReportID ?? report.id;
   const candidateEmail = (fields as any).CandidateEmail;
-  const cefr = (fields as any).CEFR_Level;
-  const accent = (fields as any).Accent;
+  const canonical = (() => {
+    try {
+      const raw = (fields as any).CanonicalReportJson;
+      if (typeof raw !== "string" || !raw.trim()) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  })();
+  const cefr = canonical?.cefr_level ?? (fields as any).CEFR_Level;
+  const accent = (fields as any).Accent ?? "insufficient_evidence";
   const examDate = (fields as any).ExamDate;
 
-  const strengths = asStringArray((fields as any).Strengths);
-  const weaknesses = asStringArray((fields as any).Weaknesses);
-  const recommendations = asStringArray((fields as any).Recommendations);
-  const overallComment = safe((fields as any).OverallComment);
+  const strengths = asStringArray(canonical?.strengths ?? (fields as any).Strengths);
+  const weaknesses = asStringArray(canonical?.weaknesses ?? (fields as any).Weaknesses);
+  const recommendations = asStringArray(canonical?.recommendations ?? (fields as any).Recommendations);
+  const overallComment = safe(canonical?.overall_comment ?? (fields as any).OverallComment);
 
   return (
     <Document>

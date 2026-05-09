@@ -1155,10 +1155,9 @@ export default function LumaSpeakingTestPage() {
       }));
       appendLog("Report saved and formatted.");
     } catch (e: any) {
-      appendLog(
-        "Network error while saving report: " + (e?.message || "unknown")
-      );
-      alert("Network error while generating the report. Please try again.");
+      const message = "Network error while generating the report. Please try again.";
+      appendLog("Network error while saving report: " + (e?.message || "unknown"));
+      setReportError(message);
     } finally {
       setIsSubmittingReport(false);
       setStatus("active");
