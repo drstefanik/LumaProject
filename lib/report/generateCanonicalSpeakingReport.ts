@@ -80,18 +80,27 @@ function hasCanonicalEvidence(report: CanonicalReport) {
 }
 
 export async function generateCanonicalSpeakingReport(sessionId: string) {
-  const transcript = (await getSpeakingEvents(sessionId)).map((e) => ({ role: e.role, text: e.text, atMs: Date.parse(e.createdAt), isFinal: e.isFinal, id: e.id })) as TranscriptTurn[];
-  const candidate: CandidatePayload = { firstName: "Candidate", lastName: sessionId, email: `${sessionId}@session.local` };
+  const normalizedSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
+  if (!normalizedSessionId || normalizedSessionId.toLowerCase() === "null") {
+    return {
+      ok: false as const,
+      status: 400,
+      payload: { success: false, error: "Missing or invalid sessionId", reason: "invalid_session_id" },
+    };
+  }
+
+  const transcript = (await getSpeakingEvents(normalizedSessionId)).map((e) => ({ role: e.role, text: e.text, atMs: Date.parse(e.createdAt), isFinal: e.isFinal, id: e.id })) as TranscriptTurn[];
+  const candidate: CandidatePayload = { firstName: "Candidate", lastName: normalizedSessionId, email: `${normalizedSessionId}@session.local` };
   const learnerTurns = asFinalLearner(transcript);
   const assistantTurns = transcript.filter((t) => t.role === "assistant" && t.text?.trim());
   const learnerWordCount = learnerTurns.reduce((a, t) => a + countWords(t.text), 0);
 
-  console.log("[generateCanonicalSpeakingReport] integrity metrics", { sessionId, learnerUtterances: learnerTurns.length, assistantUtterances: assistantTurns.length, transcriptFinalized: true, learnerWordCount });
+  console.log("[generateCanonicalSpeakingReport] integrity metrics", { sessionId: normalizedSessionId, learnerUtterances: learnerTurns.length, assistantUtterances: assistantTurns.length, transcriptFinalized: true, learnerWordCount });
 
   if (!learnerTurns.length || learnerWordCount < MIN_LEARNER_WORD_COUNT) {
     await saveLumaReport({
-      reportId: `RPT-${sessionId}-${Date.now()}`,
-      candidateId: sessionId,
+      reportId: `RPT-${normalizedSessionId}-${Date.now()}`,
+      candidateId: normalizedSessionId,
       email: candidate.email!,
       reportStatus: "incomplete",
       blockedReason: "insufficient_canonical_learner_evidence",
@@ -116,8 +125,8 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
   const blockReason = validateCanonicalReport(canonicalReport, learnerTurns);
   if (blockReason) {
     await saveLumaReport({
-      reportId: `RPT-${sessionId}-${Date.now()}`,
-      candidateId: sessionId,
+      reportId: `RPT-${normalizedSessionId}-${Date.now()}`,
+      candidateId: normalizedSessionId,
       email: candidate.email!,
       reportStatus: "blocked",
       blockedReason: blockReason,
@@ -139,7 +148,7 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
       hallucinationRiskFlag: true,
       rawJson: JSON.stringify(canonicalReport),
     });
-    console.log("[generateCanonicalSpeakingReport] blocked", { sessionId, blockReason, confidence: canonicalReport.confidence });
+    console.log("[generateCanonicalSpeakingReport] blocked", { sessionId: normalizedSessionId, blockReason, confidence: canonicalReport.confidence });
     return { ok: false as const, status: 422, payload: { success: false, incomplete: true, message: "The session did not contain enough reliable evidence to generate a final report.", reason: blockReason } };
   }
 
@@ -148,10 +157,10 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
   const safeAccent: string = "insufficient_evidence";
   const safeNarrative = hasEvidence;
   const reportText = JSON.stringify(canonicalReport, null, 2);
-  const reportId = `RPT-${sessionId}-${Date.now()}`;
+  const reportId = `RPT-${normalizedSessionId}-${Date.now()}`;
   const airtableId = await saveLumaReport({
     reportId,
-    candidateId: sessionId,
+    candidateId: normalizedSessionId,
     email: candidate.email!,
     cefrLevel: safeCefrLevel,
     accent: safeAccent,
@@ -185,7 +194,7 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
 
   const dir = path.join(process.cwd(), "report");
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, `${sessionId}.json`), JSON.stringify({ sessionId, candidate, canonicalReport, transcript: learnerTurns }, null, 2));
+  await fs.writeFile(path.join(dir, `${normalizedSessionId}.json`), JSON.stringify({ sessionId: normalizedSessionId, candidate, canonicalReport, transcript: learnerTurns }, null, 2));
 
   return { ok: true as const, status: 200, payload: { success: true, airtableId, reportText, meta: { cefrLevel: canonicalReport.cefr_level, confidence: canonicalReport.confidence } } };
 }
