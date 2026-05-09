@@ -1216,29 +1216,51 @@ export default function LumaSpeakingTestPage() {
     }
 
     let parsed: ReportState["parsed"] | undefined;
+    const tryExtractJson = (raw: string) => {
+      const firstBrace = raw.indexOf("{");
+      const lastBrace = raw.lastIndexOf("}");
+      if (firstBrace >= 0 && lastBrace > firstBrace) {
+        const candidate = raw.slice(firstBrace, lastBrace + 1);
+        return JSON.parse(candidate);
+      }
+      return null;
+    };
 
     try {
       parsed = JSON.parse(trimmed);
     } catch (error) {
-      console.warn("[LUMA] Failed to parse evaluation JSON", error);
-      appendLog("Invalid evaluation JSON received. Sending raw text only.");
+      appendLog("Primary JSON parse failed. Trying JSON extraction from buffer...");
+      try {
+        parsed = tryExtractJson(trimmed) || undefined;
+      } catch (extractErr) {
+        console.warn("[LUMA] Failed to extract evaluation JSON", extractErr);
+      }
     }
 
     console.log("[LUMA] Parsed evaluation object:", parsed);
 
     const finalParsedReport: ReportState = {
       rawText: trimmed,
-      parsed: parsed || undefined,
+      parsed: parsed || {
+        cefr_level: "insufficient_evidence",
+        accent: "insufficient_evidence",
+        strengths: ["insufficient_evidence"],
+        weaknesses: ["insufficient_evidence"],
+        recommendations: ["insufficient_evidence"],
+        overall_comment: "insufficient_evidence",
+      },
     };
     setReport(finalParsedReport);
     await submitReport(finalParsedReport);
   }
 
-  function stopTest() {
+  async function stopTest() {
     appendLog("Stop pressed. Finalizing current session...");
     stopTimer();
     stopMicrophoneTracks();
-    void submitReport(report ?? { rawText: "" });
+    if (isSubmittingReport || statusRef.current === "evaluating") return;
+    setReportError(null);
+    requestFinalEvaluation();
   }
 
   function hardCloseSession() {
@@ -1558,11 +1580,17 @@ export default function LumaSpeakingTestPage() {
                 </p>
               )}
 
-              {isSubmittingReport && (
-                <p className="text-[12px] text-slate-300">
-                  Generating the final formatted report...
-                </p>
-              )}
+                  {isEvaluating && !isSubmittingReport && (
+                    <p className="text-[12px] text-slate-300">
+                      Generating final report…
+                    </p>
+                  )}
+
+                  {isSubmittingReport && (
+                    <p className="text-[12px] text-slate-300">
+                      Generating the final formatted report...
+                    </p>
+                  )}
 
               {reportError && (
                 <p className="text-[12px] text-amber-300">{reportError}</p>
