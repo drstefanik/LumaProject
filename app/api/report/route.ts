@@ -36,29 +36,37 @@ export async function POST(req: NextRequest) {
     const cefr = typeof parsed.cefr_level === "string" && parsed.cefr_level.trim() ? parsed.cefr_level.trim() : "insufficient_evidence";
     const transcript = Array.isArray(body?.transcript) ? body.transcript : [];
 
-    const airtableId = await saveLumaReport({
-      email: candidateEmail,
-      emailKeyNormalized: candidateEmail.toLowerCase(),
-      cefrLevel: cefr,
-      accent: asText(parsed.accent),
-      strengths: asArray(parsed.strengths),
-      weaknesses: asArray(parsed.weaknesses),
-      recommendations: asArray(parsed.recommendations),
-      overallComment: asText(parsed.overall_comment),
-      reportStatus: "generated",
-      reportVersion: "v1-compat",
-      reportSource: "legacy_api_candidate_email",
-      transcriptIntegrity: transcript.length > 0 ? "ok" : "insufficient_evidence",
-      rawJson:
-        (typeof body?.rawEvaluationText === "string" && body.rawEvaluationText.trim() && body.rawEvaluationText) ||
-        (typeof body?.rawText === "string" && body.rawText.trim() && body.rawText) ||
-        JSON.stringify(parsed),
-      finalizedTranscriptJson: JSON.stringify({ transcript }),
-    });
+    let airtableId: string | null = null;
+    let saveError: string | null = null;
+    try {
+      airtableId = await saveLumaReport({
+        email: candidateEmail,
+        emailKeyNormalized: candidateEmail.toLowerCase(),
+        cefrLevel: cefr,
+        accent: asText(parsed.accent),
+        strengths: asArray(parsed.strengths),
+        weaknesses: asArray(parsed.weaknesses),
+        recommendations: asArray(parsed.recommendations),
+        overallComment: asText(parsed.overall_comment),
+        reportStatus: "generated",
+        reportVersion: "v1-compat",
+        reportSource: "legacy_api_candidate_email",
+        transcriptIntegrity: transcript.length > 0 ? "ok" : "insufficient_evidence",
+        rawJson:
+          (typeof body?.rawEvaluationText === "string" && body.rawEvaluationText.trim() && body.rawEvaluationText) ||
+          (typeof body?.rawText === "string" && body.rawText.trim() && body.rawText) ||
+          JSON.stringify(parsed),
+        finalizedTranscriptJson: JSON.stringify({ transcript }),
+      });
+    } catch (error: any) {
+      saveError = String(error?.message ?? "Airtable save failed");
+      console.error("[api/report] report generated but Airtable save failed", { error, message: saveError });
+    }
 
     return NextResponse.json({
       success: true,
       airtableId,
+      saveError,
       reportText:
         typeof body?.rawEvaluationText === "string"
           ? body.rawEvaluationText
@@ -69,6 +77,8 @@ export async function POST(req: NextRequest) {
         cefrLevel: cefr,
       },
       compatibilityMode: true,
+    }, {
+      status: saveError ? 207 : 200,
     });
   } catch (err) {
     console.error("Error handling /api/report request", err);
