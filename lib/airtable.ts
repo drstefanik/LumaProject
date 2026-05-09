@@ -72,7 +72,6 @@ type LumaReportRecord = {
 
 export async function saveLumaReport(record: LumaReportRecord) {
   const fields: Record<string, any> = {
-    ReportID: record.reportId ?? null,
     CandidateID: record.candidateId ?? null,
     CandidateEmail: record.email,
     CEFR_Level: record.cefrLevel ?? null,
@@ -111,15 +110,13 @@ export async function saveLumaReport(record: LumaReportRecord) {
 
   console.log("[Airtable] LUMA report fields", fields);
 
-  try {
-    const created = await lumaReportsTable().create([{ fields }]);
-    return created[0]?.getId?.() ?? null;
-  } catch (error: any) {
-    const message = String(error?.message ?? "");
-    if (!message.includes("UNKNOWN_FIELD_NAME")) {
-      throw error;
-    }
-    console.warn("[Airtable] unknown fields detected; retrying with compatibility field set");
+  const isComputedFieldError = (message: string) =>
+    message.includes("UNKNOWN_FIELD_NAME") ||
+    message.includes("cannot accept a value because the field is computed") ||
+    message.includes("cannot be set") ||
+    message.includes("read only");
+
+  const toSafeLegacyFields = (withCreatedAt: boolean) => {
     const compatibilityFields = new Set([
       "CandidateEmail",
       "CEFR_Level",
@@ -134,12 +131,39 @@ export async function saveLumaReport(record: LumaReportRecord) {
       "TranscriptUrl",
       "PDFStatus",
       "PDFUrl",
+      ...(withCreatedAt ? ["CreatedAt"] : []),
     ]);
-    const fallbackFields = Object.fromEntries(
+
+    const baseFields = Object.fromEntries(
       Object.entries(fields).filter(([key, value]) => compatibilityFields.has(key) && value !== undefined),
     );
-    const created = await lumaReportsTable().create([{ fields: fallbackFields }]);
+
+    if (withCreatedAt && record.reportGeneratedAt) {
+      baseFields.CreatedAt = record.reportGeneratedAt;
+    }
+
+    return baseFields;
+  };
+
+  try {
+    const created = await lumaReportsTable().create([{ fields }]);
     return created[0]?.getId?.() ?? null;
+  } catch (error: any) {
+    const message = String(error?.message ?? "");
+    if (!isComputedFieldError(message)) {
+      throw error;
+    }
+    console.warn("[Airtable] computed/unknown/read-only fields detected; retrying with safe legacy field set");
+    try {
+      const created = await lumaReportsTable().create([{ fields: toSafeLegacyFields(true) }]);
+      return created[0]?.getId?.() ?? null;
+    } catch (fallbackError: any) {
+      const fallbackMessage = String(fallbackError?.message ?? "");
+      if (!isComputedFieldError(fallbackMessage)) throw fallbackError;
+      console.warn("[Airtable] safe legacy payload still had computed/unknown/read-only fields; retrying without CreatedAt");
+      const created = await lumaReportsTable().create([{ fields: toSafeLegacyFields(false) }]);
+      return created[0]?.getId?.() ?? null;
+    }
   }
 }
 
