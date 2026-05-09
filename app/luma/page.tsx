@@ -19,6 +19,8 @@ import {
 type Status = "idle" | "connecting" | "active" | "evaluating";
 
 
+type TranscriptTurn = { role: "learner" | "assistant"; text: string; atMs: number };
+
 type ReportState = {
   rawText: string;
   parsed?: {
@@ -449,6 +451,7 @@ export default function LumaSpeakingTestPage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false);
   const [report, setReport] = useState<ReportState | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [candidateId, setCandidateId] = useState<string | null>(null);
 
@@ -474,6 +477,7 @@ export default function LumaSpeakingTestPage() {
 
   const reportResponseIdRef = useRef<string | null>(null);
   const evaluationBufferRef = useRef<string>("");
+  const transcriptRef = useRef<TranscriptTurn[]>([]);
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
 
@@ -551,6 +555,18 @@ export default function LumaSpeakingTestPage() {
       micStreamRef.current.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
     }
+  }
+
+
+  async function persistTranscriptEvent(event: { role: "learner" | "assistant"; text: string; sourceEventId: string; isFinal?: boolean }) {
+    if (!candidateId) return;
+    try {
+      await fetch(`/api/speaking/sessions/${candidateId}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(event),
+      });
+    } catch {}
   }
 
   async function startTest() {
@@ -764,6 +780,8 @@ export default function LumaSpeakingTestPage() {
 
       dc.onopen = () => {
         appendLog("Data channel open. Configuring LUMA session...");
+        transcriptRef.current = [];
+        setReportError(null);
         setStatus("active");
         if (
           !hasSpeakingTimerStartedRef.current &&
@@ -973,6 +991,19 @@ export default function LumaSpeakingTestPage() {
               evaluationBufferRef.current += message.text ?? "";
             } else if (message.text?.trim()) {
               appendLog(`LUMA: ${message.text}`);
+              const t = { role: "assistant" as const, text: message.text.trim(), atMs: Date.now() };
+              transcriptRef.current.push(t);
+              void persistTranscriptEvent({ role: t.role, text: t.text, sourceEventId: `assistant-${message.response_id}-${t.atMs}`, isFinal: true });
+            }
+            return;
+          }
+
+          if (message.type === "conversation.item.input_audio_transcription.completed") {
+            const learnerText = message.transcript ?? message.text ?? "";
+            if (typeof learnerText === "string" && learnerText.trim()) {
+              const t = { role: "learner" as const, text: learnerText.trim(), atMs: Date.now() };
+              transcriptRef.current.push(t);
+              void persistTranscriptEvent({ role: t.role, text: t.text, sourceEventId: `learner-${t.atMs}-${learnerText.trim().slice(0,24)}`, isFinal: true });
             }
             return;
           }
@@ -1067,13 +1098,13 @@ export default function LumaSpeakingTestPage() {
     appendLog("Requesting final written evaluation from LUMA...");
 
     const instructions =
-      "You are an English speaking examiner. " +
-      "The user has just completed a speaking test. " +
-      "Based ONLY on the conversation so far, return a single JSON object describing their speaking performance. " +
-      "You must NOT produce any spoken feedback, summary, or explanation for the candidate. " +
-      "You are writing for the examiner's backend system only, not for the candidate. " +
-      "Return ONLY valid JSON, with no extra text, using this exact schema: " +
-      '{ "candidate_name": string | null, "cefr_level": string, "accent": string, "strengths": string[], "weaknesses": string[], "recommendations": string[], "overall_comment": string }.';
+      "Return ONLY valid JSON for backend processing. " +
+      "Assess ONLY what is explicitly present in the transcript and interaction metadata. " +
+      "Do not invent learner utterances, examples, CEFR evidence, strengths, weaknesses, grammar/vocabulary claims, pronunciation claims, scores, or summaries. " +
+      "If evidence is missing for any field, use the literal value insufficient_evidence. " +
+      "If transcript is incomplete or learner speech is too limited, return insufficient_evidence for all rubric-dependent fields. " +
+      "Output schema exactly: " +
+      '{"candidate_name":string|null,"cefr_level":string,"accent":string,"strengths":string[],"weaknesses":string[],"recommendations":string[],"overall_comment":string,"evidence":{"grammar_examples":string[],"vocabulary_examples":string[],"learner_quotes":string[]}}.';
 
     const event = {
       type: "response.create",
@@ -1094,40 +1125,22 @@ export default function LumaSpeakingTestPage() {
     appendLog("submitReport called. Sending POST /api/report ...");
     appendLog("Submitting evaluation to /api/report...");
 
-    const payload = {
-      candidate: {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        dateOfBirth: birthDate,
-        nativeLanguage: nativeLanguage.trim(),
-        country: country.trim(),
-        testPurpose: testPurpose.trim(),
-        consentPrivacy: privacyAccepted,
-      },
-      evaluation: {
-        rawJson: finalReport.rawText,
-        parsed: finalReport.parsed,
-      },
-    };
-
-    console.log("[LUMA] evaluation.rawJson:", payload.evaluation.rawJson);
+    const payload = { sessionId: candidateId, finalize: true };
 
     try {
-      const resp = await fetch("/api/report", {
+      const resp = await fetch(`/api/speaking/sessions/${candidateId}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
+      const saved = await resp.json();
       if (!resp.ok) {
-        const text = await resp.text();
-        appendLog("Error saving report: " + text);
-        alert("Failed to generate the final report. Please try again.");
+        const message = saved?.message || "Failed to generate the final report.";
+        setReportError(message);
+        appendLog("Error saving report: " + message);
         return;
       }
-
-      const saved = await resp.json();
       setReport((prev) => ({
         ...(prev || finalReport),
         formatted: saved.reportText,
@@ -1502,6 +1515,10 @@ export default function LumaSpeakingTestPage() {
                 <p className="text-[12px] text-slate-300">
                   Generating the final formatted report...
                 </p>
+              )}
+
+              {reportError && (
+                <p className="text-[12px] text-amber-300">{reportError}</p>
               )}
 
               {report && (
