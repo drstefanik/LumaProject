@@ -268,7 +268,7 @@ export async function createAudit(
   action: string,
   reportId?: string,
 ) {
-  const tableName = process.env.AIRTABLE_TABLE_AUDIT;
+  const tableName = process.env.AIRTABLE_TABLE_AUDIT || "AuditLogs";
 
   if (!tableName) {
     throw new Error("AIRTABLE_TABLE_AUDIT is missing.");
@@ -303,7 +303,7 @@ export async function listReports(params: {
   page?: number | null;
   pageSize?: number | null;
 }) {
-  const tableName = process.env.LUMA_REPORTS_TABLE;
+  const tableName = process.env.LUMA_REPORTS_TABLE || "Luma Reports";
 
   if (!tableName) {
     throw new Error("LUMA_REPORTS_TABLE is missing.");
@@ -490,7 +490,7 @@ export async function getFirstReportByFormula(tableName: string, formula: string
 }
 
 export async function getReportByReportID(reportId: string) {
-  const tableName = process.env.LUMA_REPORTS_TABLE;
+  const tableName = process.env.LUMA_REPORTS_TABLE || "Luma Reports";
 
   if (!tableName) {
     throw new Error("LUMA_REPORTS_TABLE is missing.");
@@ -508,7 +508,7 @@ export async function updateReportByReportID(
   reportId: string,
   fields: Record<string, unknown>,
 ) {
-  const tableName = process.env.LUMA_REPORTS_TABLE;
+  const tableName = process.env.LUMA_REPORTS_TABLE || "Luma Reports";
 
   if (!tableName) {
     throw new Error("LUMA_REPORTS_TABLE is missing.");
