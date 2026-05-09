@@ -1136,7 +1136,13 @@ export default function LumaSpeakingTestPage() {
 
       const saved = await resp.json();
       if (!resp.ok) {
-        const message = saved?.message || "Failed to generate the final report.";
+        if (resp.status === 422 && saved?.incomplete) {
+          const message = saved?.message || "The report is incomplete due to insufficient evidence.";
+          setReportError(message);
+          appendLog("Finalize returned incomplete report state: " + (saved?.reason || "unknown_reason"));
+          return;
+        }
+        const message = saved?.message || saved?.error || "Failed to generate the final report.";
         setReportError(message);
         appendLog("Error saving report: " + message);
         return;
