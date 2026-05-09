@@ -31,6 +31,13 @@ type ReportState = {
     weaknesses?: string[];
     recommendations?: string[];
     overall_comment?: string;
+    rubric?: {
+      fluency_and_coherence?: string;
+      lexical_resource?: string;
+      grammatical_range_and_accuracy?: string;
+      pronunciation_and_intelligibility?: string;
+      interaction_and_task_response?: string;
+    };
     global_score?: number;
   };
   formatted?: string;
@@ -1118,12 +1125,17 @@ export default function LumaSpeakingTestPage() {
 
     const instructions =
       "Return ONLY valid JSON for backend processing. " +
+      "Use the full LUMA speaking assessment rubric; do not use short/generic fallback language. " +
       "Assess ONLY what is explicitly present in the transcript and interaction metadata. " +
       "Do not invent learner utterances, examples, CEFR evidence, strengths, weaknesses, grammar/vocabulary claims, pronunciation claims, scores, or summaries. " +
+      "Your assessment must cover: fluency_and_coherence, lexical_resource, grammatical_range_and_accuracy, pronunciation_and_intelligibility, interaction_and_task_response, and an overall cautious CEFR judgment. " +
+      "CEFR must be conservative: do NOT assign B2 unless there is clear evidence of sustained extended speech with B2-level range, control, and coherence across the interaction. " +
+      "Strengths, weaknesses, and recommendations must be specific and tied to observed learner performance (not generic statements). " +
+      "Accent must be descriptive only when supported by evidence; otherwise set accent to not_enough_evidence. " +
       "If evidence is missing for any field, use the literal value insufficient_evidence. " +
       "If transcript is incomplete or learner speech is too limited, return insufficient_evidence for all rubric-dependent fields. " +
       "Output schema exactly: " +
-      '{"candidate_name":string|null,"cefr_level":string,"accent":string,"strengths":string[],"weaknesses":string[],"recommendations":string[],"overall_comment":string,"evidence":{"grammar_examples":string[],"vocabulary_examples":string[],"learner_quotes":string[]}}.';
+      '{"candidate_name":string|null,"cefr_level":string,"accent":string,"strengths":string[],"weaknesses":string[],"recommendations":string[],"overall_comment":string,"rubric":{"fluency_and_coherence":string,"lexical_resource":string,"grammatical_range_and_accuracy":string,"pronunciation_and_intelligibility":string,"interaction_and_task_response":string},"evidence":{"grammar_examples":string[],"vocabulary_examples":string[],"learner_quotes":string[]}}.';
 
     const event = {
       type: "response.create",
@@ -1245,16 +1257,19 @@ export default function LumaSpeakingTestPage() {
 
     console.log("[LUMA] Parsed evaluation object:", parsed);
 
+    if (!parsed) {
+      const parseMessage =
+        "Failed to parse detailed evaluation JSON. Check logs for parser debug output; report not auto-filled.";
+      appendLog(parseMessage);
+      setReportError(parseMessage);
+      console.error("[LUMA] Evaluation JSON parsing failed", { raw: trimmed });
+      setStatus("active");
+      return;
+    }
+
     const finalParsedReport: ReportState = {
       rawText: trimmed,
-      parsed: parsed || {
-        cefr_level: "insufficient_evidence",
-        accent: "insufficient_evidence",
-        strengths: ["insufficient_evidence"],
-        weaknesses: ["insufficient_evidence"],
-        recommendations: ["insufficient_evidence"],
-        overall_comment: "insufficient_evidence",
-      },
+      parsed,
     };
     setReport(finalParsedReport);
     await submitReport(finalParsedReport);
