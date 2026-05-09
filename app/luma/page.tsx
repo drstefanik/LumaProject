@@ -1173,7 +1173,8 @@ export default function LumaSpeakingTestPage() {
       });
 
       const saved = await resp.json();
-      if (!resp.ok) {
+      const hasReportPayload = typeof saved?.reportText === "string" || Boolean(saved?.meta) || Boolean(saved?.success);
+      if (!resp.ok && !hasReportPayload) {
         const hasEvaluation = Boolean(finalReport.parsed && Object.keys(finalReport.parsed).length > 0);
         const hasTranscript = Array.isArray(transcriptRef.current) && transcriptRef.current.length > 0;
         if (resp.status === 422 && saved?.incomplete && !hasEvaluation && !hasTranscript) {
@@ -1189,11 +1190,16 @@ export default function LumaSpeakingTestPage() {
       }
       setReport((prev) => ({
         ...(prev || finalReport),
-        formatted: saved.reportText,
-        meta: saved.meta,
-        airtableId: saved.airtableId ?? null,
+        formatted: typeof saved?.reportText === "string" ? saved.reportText : finalReport.rawText,
+        meta: saved?.meta,
+        airtableId: saved?.airtableId ?? null,
       }));
-      appendLog("Report saved via legacy /api/report flow.");
+      if (saved?.saveError) {
+        console.error("[LUMA] Report generated but Airtable save failed", saved.saveError);
+        appendLog("Report generated, but Airtable save failed: " + saved.saveError);
+      } else {
+        appendLog("Report saved via legacy /api/report flow.");
+      }
     } catch (e: any) {
       const message = "Network error while generating the report. Please try again.";
       appendLog("Network error while saving report: " + (e?.message || "unknown"));

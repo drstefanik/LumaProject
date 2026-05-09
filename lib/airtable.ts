@@ -117,53 +117,43 @@ export async function saveLumaReport(record: LumaReportRecord) {
 
   console.log("[Airtable] LUMA report fields", fields);
 
-  const isComputedFieldError = (message: string) =>
-    message.includes("UNKNOWN_FIELD_NAME") ||
-    message.includes("cannot accept a value because the field is computed") ||
-    message.includes("cannot be set") ||
-    message.includes("read only");
+  const toMinimalWritableFields = () => ({
+    CandidateEmail: fields.CandidateEmail,
+    CEFR_Level: fields.CEFR_Level,
+    Accent: fields.Accent,
+    Strengths: fields.Strengths,
+    Weaknesses: fields.Weaknesses,
+    Recommendations: fields.Recommendations,
+    OverallComment: fields.OverallComment,
+    RawEvaluationText: fields.RawEvaluationText,
+    ComplianceStopReason: undefined,
+    ReportStatus: fields.ReportStatus,
+  });
 
-  const toSafeLegacyFields = (withCreatedAt: boolean) => {
-    const compatibilityFields = new Set([
-      "CandidateEmail",
-      "CEFR_Level",
-      "Accent",
-      "Strengths",
-      "Weaknesses",
-      "Recommendations",
-      "OverallComment",
-      "RawEvaluationText",
-      "LiveTranscriptIncident",
-      "ComplianceStopReason",
-      "TranscriptUrl",
-      "PDFStatus",
-      "PDFUrl",
-    ]);
-
-    const baseFields = Object.fromEntries(
-      Object.entries(fields).filter(([key, value]) => compatibilityFields.has(key) && value !== undefined),
-    );
-
-    return baseFields;
-  };
+  const toFinalMinimalFallbackFields = () => ({
+    CandidateEmail: fields.CandidateEmail,
+    RawEvaluationText: fields.RawEvaluationText,
+    OverallComment: fields.OverallComment,
+    ReportStatus: fields.ReportStatus,
+  });
 
   try {
     const created = await lumaReportsTable().create([{ fields }]);
     return created[0]?.getId?.() ?? null;
   } catch (error: any) {
-    const message = String(error?.message ?? "");
-    if (!isComputedFieldError(message)) {
-      throw error;
-    }
-    console.warn("[Airtable] computed/unknown/read-only fields detected; retrying with safe legacy field set");
+    console.warn("[Airtable] full payload rejected; retrying with minimal writable payload", {
+      message: String(error?.message ?? ""),
+      error,
+    });
     try {
-      const created = await lumaReportsTable().create([{ fields: toSafeLegacyFields(true) }]);
+      const created = await lumaReportsTable().create([{ fields: toMinimalWritableFields() }]);
       return created[0]?.getId?.() ?? null;
     } catch (fallbackError: any) {
-      const fallbackMessage = String(fallbackError?.message ?? "");
-      if (!isComputedFieldError(fallbackMessage)) throw fallbackError;
-      console.warn("[Airtable] safe legacy payload still had computed/unknown/read-only fields; retrying without CreatedAt");
-      const created = await lumaReportsTable().create([{ fields: toSafeLegacyFields(false) }]);
+      console.warn("[Airtable] minimal writable payload rejected; retrying with final minimal payload", {
+        message: String(fallbackError?.message ?? ""),
+        error: fallbackError,
+      });
+      const created = await lumaReportsTable().create([{ fields: toFinalMinimalFallbackFields() }]);
       return created[0]?.getId?.() ?? null;
     }
   }
