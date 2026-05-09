@@ -39,9 +39,11 @@ export const lumaTranscriptEventsTable = () => base(LUMA_TRANSCRIPT_EVENTS_TABLE
 type LumaReportRecord = {
   reportId?: string;
   candidateId?: string;
+  candidateRecordId?: string;
   firstName?: string;
   lastName?: string;
   email: string;
+  emailKeyNormalized?: string;
   cefrLevel?: string;
   accent?: string;
   strengths?: string[] | string;
@@ -71,9 +73,10 @@ type LumaReportRecord = {
 };
 
 export async function saveLumaReport(record: LumaReportRecord) {
+  const normalizedEmail = (record.emailKeyNormalized ?? record.email).trim().toLowerCase();
   const fields: Record<string, any> = {
-    CandidateID: record.candidateId ?? null,
     CandidateEmail: record.email,
+    EmailKeyNormalized: normalizedEmail,
     CEFR_Level: record.cefrLevel ?? null,
     Accent: record.accent ?? null,
     Strengths: Array.isArray(record.strengths)
@@ -108,6 +111,10 @@ export async function saveLumaReport(record: LumaReportRecord) {
     RawEvaluationText: record.rawJson,
   };
 
+  if (record.candidateRecordId && process.env.AIRTABLE_ENABLE_CANDIDATE_LINK === "true") {
+    fields.Candidate = [record.candidateRecordId];
+  }
+
   console.log("[Airtable] LUMA report fields", fields);
 
   const isComputedFieldError = (message: string) =>
@@ -131,16 +138,11 @@ export async function saveLumaReport(record: LumaReportRecord) {
       "TranscriptUrl",
       "PDFStatus",
       "PDFUrl",
-      ...(withCreatedAt ? ["CreatedAt"] : []),
     ]);
 
     const baseFields = Object.fromEntries(
       Object.entries(fields).filter(([key, value]) => compatibilityFields.has(key) && value !== undefined),
     );
-
-    if (withCreatedAt && record.reportGeneratedAt) {
-      baseFields.CreatedAt = record.reportGeneratedAt;
-    }
 
     return baseFields;
   };
@@ -164,6 +166,29 @@ export async function saveLumaReport(record: LumaReportRecord) {
       const created = await lumaReportsTable().create([{ fields: toSafeLegacyFields(false) }]);
       return created[0]?.getId?.() ?? null;
     }
+  }
+}
+
+export async function resolveSpeakingCandidateEmail(candidateRecordId: string) {
+  const normalizedId = typeof candidateRecordId === "string" ? candidateRecordId.trim() : "";
+  if (!normalizedId) return null;
+
+  try {
+    const candidateRecord = await speakingCandidatesTable().find(normalizedId);
+    const email = String(candidateRecord.get("Email") ?? "").trim();
+    if (!email) return null;
+
+    return {
+      email,
+      emailKeyNormalized: email.toLowerCase(),
+      candidateRecordId: normalizedId,
+    };
+  } catch (error) {
+    console.warn("[Airtable] unable to resolve speaking candidate email", {
+      candidateRecordId: normalizedId,
+      error,
+    });
+    return null;
   }
 }
 
