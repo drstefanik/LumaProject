@@ -1140,12 +1140,10 @@ export default function LumaSpeakingTestPage() {
   }
 
   async function submitReport(finalReport: ReportState) {
-    const activeCandidateRecordId = getValidCandidateRecordId(candidateId);
     const candidateEmail = email.trim();
-    const useCompatibilityMode = !activeCandidateRecordId && !!candidateEmail;
-    if (!activeCandidateRecordId && !candidateEmail) {
-      setReportError("Cannot finalize the session: candidate email is missing.");
-      appendLog("Cannot finalize report: missing candidate session id and email.");
+    if (!candidateEmail) {
+      setReportError("Cannot save the report: candidate email is missing.");
+      appendLog("Cannot save report: missing candidate email.");
       setStatus("idle");
       return;
     }
@@ -1154,19 +1152,17 @@ export default function LumaSpeakingTestPage() {
     appendLog("submitReport called. Sending POST /api/report ...");
     appendLog("Submitting evaluation to /api/report...");
 
-    const payload = useCompatibilityMode
-      ? {
-          candidateEmail,
-          rawText: finalReport.rawText,
-          parsed: finalReport.parsed,
-          transcript: transcriptRef.current,
-          finalize: true,
-          compatibilityMode: true,
-        }
-      : { sessionId: activeCandidateRecordId, finalize: true };
-    const requestUrl = useCompatibilityMode
-      ? "/api/report"
-      : `/api/speaking/sessions/${activeCandidateRecordId}/finalize`;
+    const payload = {
+      candidateEmail,
+      candidateName: (finalReport.parsed?.candidate_name ?? candidateFullName) || null,
+      rawEvaluationText: finalReport.rawText,
+      evaluation: finalReport.parsed,
+      finalReport: finalReport.parsed,
+      transcript: transcriptRef.current,
+      finalize: true,
+      compatibilityMode: true,
+    };
+    const requestUrl = "/api/report";
     console.log("[LUMA] Report URL:", requestUrl);
 
     try {
@@ -1178,7 +1174,9 @@ export default function LumaSpeakingTestPage() {
 
       const saved = await resp.json();
       if (!resp.ok) {
-        if (resp.status === 422 && saved?.incomplete) {
+        const hasEvaluation = Boolean(finalReport.parsed && Object.keys(finalReport.parsed).length > 0);
+        const hasTranscript = Array.isArray(transcriptRef.current) && transcriptRef.current.length > 0;
+        if (resp.status === 422 && saved?.incomplete && !hasEvaluation && !hasTranscript) {
           const message = saved?.message || "The report is incomplete due to insufficient evidence.";
           setReportError(message);
           appendLog("Finalize returned incomplete report state: " + (saved?.reason || "unknown_reason"));
@@ -1195,7 +1193,7 @@ export default function LumaSpeakingTestPage() {
         meta: saved.meta,
         airtableId: saved.airtableId ?? null,
       }));
-      appendLog(useCompatibilityMode ? "Report saved in compatibility mode." : "Report saved and formatted.");
+      appendLog("Report saved via legacy /api/report flow.");
     } catch (e: any) {
       const message = "Network error while generating the report. Please try again.";
       appendLog("Network error while saving report: " + (e?.message || "unknown"));
