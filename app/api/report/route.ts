@@ -4,259 +4,120 @@ import path from "path";
 
 import { saveLumaReport } from "@/lib/airtable";
 import { openai } from "@/lib/openai";
+import { getSpeakingEvents } from "@/lib/speakingStore";
 
 const REPORT_MODEL = process.env.OPENAI_REPORT_MODEL || "gpt-4.1-mini";
+const MIN_LEARNER_WORD_COUNT = 20;
 
-type CandidatePayload = {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  dateOfBirth?: string;
-  nativeLanguage?: string;
-  country?: string;
-  testPurpose?: string;
-  consentPrivacy?: boolean;
-};
+type CandidatePayload = { firstName?: string; lastName?: string; email?: string; nativeLanguage?: string; country?: string; testPurpose?: string };
+type TranscriptTurn = { id?: string; role: "learner" | "assistant"; text: string; atMs?: number; isFinal?: boolean };
 
-type EvaluationPayload = {
-  rawJson?: string;
-  parsed?: {
-    candidate_name?: string;
-    cefr_level?: string;
-    accent?: string;
-    strengths?: string[];
-    weaknesses?: string[];
-    recommendations?: string[];
-    overall_comment?: string;
-    global_score?: number;
+type CanonicalReport = {
+  cefr_level: string | null;
+  confidence: "low" | "medium" | "high";
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
+  overall_comment: string;
+  evidence: {
+    learner_quotes: Array<{ quote: string; supporting_utterance_ids: string[] }>;
+    rubric_coverage: Record<string, string[] | "insufficient_evidence">;
   };
 };
+
+const fillerPatterns = [/good effort/i, /communicated effectively/i, /mostly accurate/i];
+
+function countWords(t: string) { return t.trim().split(/\s+/).filter(Boolean).length; }
+function asFinalLearner(turns: TranscriptTurn[]) {
+  const seen = new Set<string>();
+  return turns.filter((t, i) => {
+    if (t.role !== "learner") return false;
+    if (!t.text?.trim()) return false;
+    if (t.isFinal === false) return false;
+    const key = `${t.text.trim().toLowerCase()}|${t.atMs ?? i}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((t, i) => ({ ...t, id: t.id ?? `u_${i + 1}` }));
+}
 
 function validatePayload(body: any) {
-  const { candidate, evaluation } = body || {};
-
-  if (!candidate || typeof candidate !== "object") return false;
-  if (!candidate.firstName || !candidate.lastName || !candidate.email)
-    return false;
-
-  if (!evaluation || typeof evaluation !== "object") return false;
-
-  const hasRaw =
-    typeof evaluation.rawJson === "string" &&
-    evaluation.rawJson.trim().length > 0;
-
-  const hasParsed = evaluation.parsed && typeof evaluation.parsed === "object";
-
-  // Basta che ci sia raw JSON O parsed JSON
-  if (!hasRaw && !hasParsed) return false;
-
-  return true;
+  return typeof body?.sessionId === "string" && body.sessionId.trim().length > 0;
 }
 
-function stringifyEvaluation(evaluation: EvaluationPayload) {
-  if (typeof evaluation.rawJson === "string" && evaluation.rawJson.trim()) {
-    return evaluation.rawJson;
-  }
-
-  if (evaluation.parsed) {
-    return JSON.stringify(evaluation.parsed, null, 2);
-  }
-
-  return "{}";
-}
-
-async function generateReport(
-  candidate: CandidatePayload,
-  evaluation: EvaluationPayload
-) {
-  const systemPrompt =
-    "You are an experienced English speaking examiner. Write concise, well-structured reports for speaking tests. " +
-    "Keep the tone professional but accessible.";
-
-  const userPrompt = [
-    "Please write a speaking test report based on the following evaluation data.",
-    "The report must be structured with the following sections:",
-    "1. Candidate Overview",
-    "2. Pronunciation",
-    "3. Fluency & Confidence",
-    "4. Vocabulary & Range",
-    "5. Grammar & Coherence",
-    "6. Overall CEFR Level",
-    "7. Recommendations",
-    "",
-    "Refer to the candidate in the third person.",
-    "",
-    "Candidate data:",
-    JSON.stringify(
-      {
-        name: `${candidate.firstName ?? ""} ${candidate.lastName ?? ""}`.trim(),
-        country: candidate.country,
-        nativeLanguage: candidate.nativeLanguage,
-        testPurpose: candidate.testPurpose,
-        cefrLevel: evaluation.parsed?.cefr_level,
-      },
-      null,
-      2
-    ),
-    "",
-    "Evaluation JSON:",
-    stringifyEvaluation(evaluation),
+async function generateCanonicalReport(candidate: CandidatePayload, learnerTurns: TranscriptTurn[], assistantTurns: TranscriptTurn[]) {
+  const prompt = [
+    "Return ONLY valid JSON.",
+    "Assess only learner utterances. Ignore assistant/system content.",
+    "No score or CEFR claim without direct learner evidence.",
+    "If insufficient evidence, use null for cefr_level and 'insufficient_evidence' in rubric_coverage.",
+    "Do not use generic filler (e.g., good effort) unless tied to concrete quotes.",
+    "Schema:",
+    '{"cefr_level":string|null,"confidence":"low"|"medium"|"high","strengths":string[],"weaknesses":string[],"recommendations":string[],"overall_comment":string,"evidence":{"learner_quotes":[{"quote":string,"supporting_utterance_ids":string[]}],"rubric_coverage":{"grammar":string[]|"insufficient_evidence","vocabulary":string[]|"insufficient_evidence","fluency":string[]|"insufficient_evidence","pronunciation":string[]|"insufficient_evidence","coherence":string[]|"insufficient_evidence"}}}',
+    "Candidate metadata:", JSON.stringify(candidate),
+    "Learner utterances:", JSON.stringify(learnerTurns),
+    "Assistant utterances (context only, not evidence):", JSON.stringify(assistantTurns),
   ].join("\n");
 
-  const completion = await openai.responses.create({
-    model: REPORT_MODEL,
-    input: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  });
-
-  const reportText = completion.output_text?.trim();
-
-  if (!reportText) {
-    throw new Error("No report text returned from OpenAI");
-  }
-
-  return reportText;
+  const completion = await openai.responses.create({ model: REPORT_MODEL, input: [{ role: "user", content: prompt }] });
+  const text = completion.output_text?.trim();
+  if (!text) throw new Error("No report text returned from OpenAI");
+  return JSON.parse(text) as CanonicalReport;
 }
 
-async function saveReportLocally(
-  candidate: CandidatePayload,
-  evaluation: EvaluationPayload,
-  reportText: string
-) {
-  const dir = path.join(process.cwd(), "report");
-  await fs.mkdir(dir, { recursive: true });
-
-  const baseName = (candidate.email || "report").replace(
-    /[^a-zA-Z0-9._-]/g,
-    "_"
-  );
-  let filePath = path.join(dir, `${baseName}.json`);
-  let counter = 2;
-
-  while (true) {
-    try {
-      await fs.access(filePath);
-      filePath = path.join(dir, `${baseName}_${counter}.json`);
-      counter += 1;
-    } catch {
-      break;
-    }
+function validateCanonicalReport(report: CanonicalReport, learnerTurns: TranscriptTurn[]) {
+  const learnerIds = new Set(learnerTurns.map((t) => t.id));
+  for (const ev of report.evidence?.learner_quotes ?? []) {
+    if (!ev.supporting_utterance_ids?.every((id) => learnerIds.has(id))) return "invalid_evidence_speaker_or_id";
   }
-
-  const payload = {
-    candidate,
-    evaluation,
-    reportText,
-    createdAt: new Date().toISOString(),
-  };
-
-  await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
-  return filePath;
+  const hasEvidence = (ids: string[] | "insufficient_evidence") => ids === "insufficient_evidence" ? false : ids.length > 0;
+  const coverage = report.evidence?.rubric_coverage ?? {};
+  if (report.cefr_level && !Object.values(coverage).some((v) => hasEvidence(v as any))) return "cefr_without_evidence";
+  if (fillerPatterns.some((re) => re.test(report.overall_comment)) && (report.evidence?.learner_quotes?.length ?? 0) === 0) return "generic_filler_without_evidence";
+  return null;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    console.log("[/api/report] Incoming payload", body);
+    if (!validatePayload(body)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
-    if (!validatePayload(body)) {
-      console.error("[/api/report] Invalid payload");
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    const sessionId = String(body.sessionId);
+    const transcript = (await getSpeakingEvents(sessionId)).map((e) => ({ role: e.role, text: e.text, atMs: Date.parse(e.createdAt), isFinal: e.isFinal, id: e.id })) as TranscriptTurn[];
+    const candidate: CandidatePayload = { firstName: "Candidate", lastName: sessionId, email: `${sessionId}@session.local` };
+    const learnerTurns = asFinalLearner(transcript);
+    const assistantTurns = transcript.filter((t) => t.role === "assistant" && t.text?.trim());
+    const learnerWordCount = learnerTurns.reduce((a, t) => a + countWords(t.text), 0);
+
+    console.log("[/api/report] integrity metrics", { learnerUtterances: learnerTurns.length, assistantUtterances: assistantTurns.length, transcriptFinalized: true, learnerWordCount });
+
+    if (!learnerTurns.length || learnerWordCount < MIN_LEARNER_WORD_COUNT) {
+      return NextResponse.json({ success: false, incomplete: true, message: "The session did not contain enough learner speech to generate a reliable report.", reason: "insufficient_canonical_learner_evidence" }, { status: 422 });
     }
 
-    const candidate = body.candidate as CandidatePayload;
-    const evaluation = body.evaluation as EvaluationPayload;
-
-    // normalizziamo: se il frontend non ha parsed, ci proviamo qui dal rawJson
-    let normalizedParsed = evaluation.parsed;
-    if (!normalizedParsed && typeof evaluation.rawJson === "string") {
-      try {
-        normalizedParsed = JSON.parse(evaluation.rawJson);
-        console.log(
-          "[/api/report] Parsed evaluation.rawJson on server side successfully"
-        );
-      } catch (e) {
-        console.warn(
-          "[/api/report] Failed to parse evaluation.rawJson on server",
-          e
-        );
-      }
+    const canonicalReport = await generateCanonicalReport(candidate, learnerTurns, assistantTurns);
+    const blockReason = validateCanonicalReport(canonicalReport, learnerTurns);
+    if (blockReason) {
+      console.log("[/api/report] blocked", { blockReason, confidence: canonicalReport.confidence });
+      return NextResponse.json({ success: false, incomplete: true, message: "The session did not contain enough reliable evidence to generate a final report.", reason: blockReason }, { status: 422 });
     }
 
-    const normalizedEvaluation: EvaluationPayload = {
-      rawJson: evaluation.rawJson,
-      parsed: normalizedParsed,
-    };
-
-    let reportText: string;
-
-    try {
-      reportText = await generateReport(candidate, normalizedEvaluation);
-    } catch (error) {
-      console.error("[/api/report] Error generating report", error);
-      return NextResponse.json(
-        { error: "Failed to generate report" },
-        { status: 500 }
-      );
-    }
-
-    let airtableId: string | null = null;
-    let localReportPath: string | null = null;
-
-    try {
-      const airtablePayload = {
-        firstName: candidate.firstName,
-        lastName: candidate.lastName,
-        email: candidate.email!,
-        cefrLevel: normalizedEvaluation.parsed?.cefr_level,
-        accent: normalizedEvaluation.parsed?.accent,
-        strengths: normalizedEvaluation.parsed?.strengths,
-        weaknesses: normalizedEvaluation.parsed?.weaknesses,
-        recommendations: normalizedEvaluation.parsed?.recommendations,
-        overallComment: normalizedEvaluation.parsed?.overall_comment,
-        rawJson: stringifyEvaluation(normalizedEvaluation),
-      };
-
-      console.log("[Airtable] LUMA report fields", airtablePayload);
-
-      airtableId = await saveLumaReport(airtablePayload);
-    } catch (error) {
-      console.error(
-        "[/api/report] Error saving LUMA report to Airtable",
-        JSON.stringify(error, null, 2)
-      );
-      airtableId = null;
-    }
-
-    try {
-      localReportPath = await saveReportLocally(
-        candidate,
-        normalizedEvaluation,
-        reportText
-      );
-    } catch (error) {
-      // in produzione (Vercel) può fallire, non è grave
-      console.warn("[/api/report] Unable to save local report file", error);
-      localReportPath = null;
-    }
-
-    console.log(
-      "[/api/report] Report generated and saved. airtableId =",
-      airtableId
-    );
-
-    return NextResponse.json({
-      success: true,
-      airtableId,
-      localReportPath,
-      reportText,
-      meta: {
-        cefrLevel: normalizedEvaluation.parsed?.cefr_level ?? null,
-        globalScore: normalizedEvaluation.parsed?.global_score ?? null,
-      },
+    const reportText = JSON.stringify(canonicalReport, null, 2);
+    const airtableId = await saveLumaReport({
+      email: candidate.email!,
+      cefrLevel: canonicalReport.cefr_level ?? undefined,
+      strengths: canonicalReport.strengths,
+      weaknesses: canonicalReport.weaknesses,
+      recommendations: canonicalReport.recommendations,
+      overallComment: canonicalReport.overall_comment,
+      rawJson: reportText,
     });
+
+    const dir = path.join(process.cwd(), "report");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, `${sessionId}.json`), JSON.stringify({ sessionId, candidate, canonicalReport, transcript: learnerTurns }, null, 2));
+
+    return NextResponse.json({ success: true, airtableId, reportText, meta: { cefrLevel: canonicalReport.cefr_level, confidence: canonicalReport.confidence } });
   } catch (err) {
     console.error("Error handling /api/report request", err);
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
