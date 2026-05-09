@@ -480,6 +480,12 @@ export default function LumaSpeakingTestPage() {
   const transcriptRef = useRef<TranscriptTurn[]>([]);
 
   const candidateFullName = `${firstName} ${lastName}`.trim();
+  const getValidCandidateRecordId = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "null" || trimmed === "undefined") return null;
+    return trimmed;
+  };
 
   function appendLog(msg: string) {
     console.log(`[LUMA] ${msg}`);
@@ -559,9 +565,10 @@ export default function LumaSpeakingTestPage() {
 
 
   async function persistTranscriptEvent(event: { role: "learner" | "assistant"; text: string; sourceEventId: string; isFinal?: boolean }) {
-    if (!candidateId) return;
+    const activeCandidateRecordId = getValidCandidateRecordId(candidateId);
+    if (!activeCandidateRecordId) return;
     try {
-      await fetch(`/api/speaking/sessions/${candidateId}/events`, {
+      await fetch(`/api/speaking/sessions/${activeCandidateRecordId}/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(event),
@@ -648,16 +655,24 @@ export default function LumaSpeakingTestPage() {
       }
 
       const candidateJson = await candidateRes.json();
-      const backendCandidateId = (candidateJson.candidateId ||
-        candidateJson.recordId) as string | undefined;
+      console.log("[LUMA] Candidate API response:", candidateJson);
+      const candidateRecordId = getValidCandidateRecordId(
+        candidateJson.id ||
+          candidateJson.recordId ||
+          candidateJson.candidateId ||
+          candidateJson.data?.id ||
+          candidateJson.candidate?.id
+      );
+      console.log("[LUMA] Resolved candidateRecordId:", candidateRecordId);
 
-      if (!backendCandidateId) {
-        appendLog("Candidate registration failed: missing candidateId.");
+      if (!candidateRecordId) {
+        setReportError("Candidate session could not be created. Please retry.");
+        appendLog("Candidate registration failed: missing candidate record id.");
         setStatus("idle");
         return;
       }
 
-      setCandidateId(backendCandidateId);
+      setCandidateId(candidateRecordId);
       console.log("[LUMA] Candidate saved");
       appendLog("Requesting client secret from backend...");
 
@@ -1121,14 +1136,24 @@ export default function LumaSpeakingTestPage() {
   }
 
   async function submitReport(finalReport: ReportState) {
+    const activeCandidateRecordId = getValidCandidateRecordId(candidateId);
+    if (!activeCandidateRecordId) {
+      setReportError("Candidate session could not be created. Please retry.");
+      appendLog("Cannot finalize report: invalid candidate record id.");
+      setStatus("idle");
+      return;
+    }
+
     setIsSubmittingReport(true);
     appendLog("submitReport called. Sending POST /api/report ...");
     appendLog("Submitting evaluation to /api/report...");
 
-    const payload = { sessionId: candidateId, finalize: true };
+    const payload = { sessionId: activeCandidateRecordId, finalize: true };
+    const finalizeUrl = `/api/speaking/sessions/${activeCandidateRecordId}/finalize`;
+    console.log("[LUMA] Finalize URL:", finalizeUrl);
 
     try {
-      const resp = await fetch(`/api/speaking/sessions/${candidateId}/finalize`, {
+      const resp = await fetch(finalizeUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
