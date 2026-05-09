@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   console.log("Candidate payload:", body);
+
   const validationError = validatePayload(body);
 
   if (validationError) {
@@ -45,13 +46,13 @@ export async function POST(req: NextRequest) {
   }
 
   const fields: Record<string, any> = {
-    FirstName: body.firstName,
-    LastName: body.lastName,
-    Email: body.email,
+    FirstName: body.firstName.trim(),
+    LastName: body.lastName.trim(),
+    Email: body.email.trim(),
     DateOfBirth: body.dateOfBirth,
-    Country: body.country,
-    NativeLanguage: body.nativeLanguage,
-    TestPurpose: body.testPurpose,
+    Country: body.country.trim(),
+    NativeLanguage: body.nativeLanguage.trim(),
+    TestPurpose: body.testPurpose.trim(),
     PrivacyConsent: true,
   };
 
@@ -80,7 +81,8 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await res.json();
-    const recordId = data.records?.[0]?.id as string | undefined;
+    const record = data.records?.[0];
+    const recordId = record?.id as string | undefined;
 
     if (!recordId) {
       return NextResponse.json(
@@ -89,7 +91,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ candidateId: recordId });
+    return NextResponse.json({
+      ok: true,
+      candidateId: recordId,
+      recordId,
+      id: recordId,
+      email: fields.Email,
+      firstName: fields.FirstName,
+      lastName: fields.LastName,
+    });
   } catch (error: any) {
     console.error("Error saving candidate", error);
     return NextResponse.json(
