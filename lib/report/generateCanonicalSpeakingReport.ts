@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 
-import { saveLumaReport } from "@/lib/airtable";
+import { resolveSpeakingCandidateEmail, saveLumaReport } from "@/lib/airtable";
 import { openai } from "@/lib/openai";
 import { getSpeakingEvents } from "@/lib/speakingStore";
 
@@ -90,7 +90,20 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
   }
 
   const transcript = (await getSpeakingEvents(normalizedSessionId)).map((e) => ({ role: e.role, text: e.text, atMs: Date.parse(e.createdAt), isFinal: e.isFinal, id: e.id })) as TranscriptTurn[];
-  const candidate: CandidatePayload = { firstName: "Candidate", lastName: normalizedSessionId, email: `${normalizedSessionId}@session.local` };
+  const resolvedCandidate = await resolveSpeakingCandidateEmail(normalizedSessionId);
+  if (!resolvedCandidate) {
+    return {
+      ok: false as const,
+      status: 422,
+      payload: {
+        success: false,
+        incomplete: true,
+        message: "The candidate email could not be resolved for this session.",
+        reason: "candidate_email_unresolved",
+      },
+    };
+  }
+  const candidate: CandidatePayload = { firstName: "Candidate", lastName: normalizedSessionId, email: resolvedCandidate.email };
   const learnerTurns = asFinalLearner(transcript);
   const assistantTurns = transcript.filter((t) => t.role === "assistant" && t.text?.trim());
   const learnerWordCount = learnerTurns.reduce((a, t) => a + countWords(t.text), 0);
@@ -101,7 +114,9 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
     await saveLumaReport({
       reportId: `RPT-${normalizedSessionId}-${Date.now()}`,
       candidateId: normalizedSessionId,
-      email: candidate.email!,
+      candidateRecordId: resolvedCandidate.candidateRecordId,
+      email: resolvedCandidate.email,
+      emailKeyNormalized: resolvedCandidate.emailKeyNormalized,
       reportStatus: "incomplete",
       blockedReason: "insufficient_canonical_learner_evidence",
       reportGeneratedAt: new Date().toISOString(),
@@ -127,7 +142,9 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
     await saveLumaReport({
       reportId: `RPT-${normalizedSessionId}-${Date.now()}`,
       candidateId: normalizedSessionId,
-      email: candidate.email!,
+      candidateRecordId: resolvedCandidate.candidateRecordId,
+      email: resolvedCandidate.email,
+      emailKeyNormalized: resolvedCandidate.emailKeyNormalized,
       reportStatus: "blocked",
       blockedReason: blockReason,
       reportGeneratedAt: new Date().toISOString(),
@@ -161,7 +178,9 @@ export async function generateCanonicalSpeakingReport(sessionId: string) {
   const airtableId = await saveLumaReport({
     reportId,
     candidateId: normalizedSessionId,
-    email: candidate.email!,
+    candidateRecordId: resolvedCandidate.candidateRecordId,
+    email: resolvedCandidate.email,
+    emailKeyNormalized: resolvedCandidate.emailKeyNormalized,
     cefrLevel: safeCefrLevel,
     accent: safeAccent,
     strengths: safeNarrative ? canonicalReport.strengths : [],
