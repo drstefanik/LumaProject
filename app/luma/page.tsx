@@ -623,6 +623,7 @@ export default function LumaSpeakingTestPage() {
       dataChannelRef.current = null;
 
       setReport(null);
+      setReportError(null);
       setCandidateId(null);
       resetSpeakingTimer();
       evaluationBufferRef.current = "";
@@ -650,6 +651,7 @@ export default function LumaSpeakingTestPage() {
         const errorText = await candidateRes.text();
         console.error("Candidate registration failed:", errorText);
         appendLog("Error registering candidate: " + errorText);
+        setReportError("Candidate session could not be created. Please retry.");
         setStatus("idle");
         return;
       }
@@ -673,7 +675,9 @@ export default function LumaSpeakingTestPage() {
       }
 
       setCandidateId(candidateRecordId);
+      setReportError(null);
       console.log("[LUMA] Candidate saved");
+      appendLog("Candidate session created: " + candidateRecordId);
       appendLog("Requesting client secret from backend...");
 
       const res = await fetch("/api/voice/client-secret", {
@@ -1138,7 +1142,7 @@ export default function LumaSpeakingTestPage() {
   async function submitReport(finalReport: ReportState) {
     const activeCandidateRecordId = getValidCandidateRecordId(candidateId);
     if (!activeCandidateRecordId) {
-      setReportError("Candidate session could not be created. Please retry.");
+      setReportError("Cannot finalize the session: candidate record id is missing.");
       appendLog("Cannot finalize report: invalid candidate record id.");
       setStatus("idle");
       return;
@@ -1220,13 +1224,15 @@ export default function LumaSpeakingTestPage() {
   }
 
   function stopTest() {
-    appendLog("Stop pressed. Asking LUMA for final evaluation...");
+    appendLog("Stop pressed. Finalizing current session...");
     stopTimer();
     stopMicrophoneTracks();
-    requestFinalEvaluation();
+    void submitReport(report ?? { rawText: "" });
   }
 
   function hardCloseSession() {
+    appendLog("Close pressed. Finalizing current session...");
+    void submitReport(report ?? { rawText: "" });
     peerRef.current?.close();
     peerRef.current = null;
     dataChannelRef.current?.close();
