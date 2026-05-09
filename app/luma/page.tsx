@@ -987,7 +987,28 @@ export default function LumaSpeakingTestPage() {
               appendLog(
                 "Speaking report completed (response.done). Calling processFinalReport..."
               );
-              const fullText = evaluationBufferRef.current.trim();
+
+              const outputText =
+                typeof message.response?.output_text === "string"
+                  ? message.response.output_text
+                  : "";
+              const structuredText = Array.isArray(message.response?.output)
+                ? message.response.output
+                    .flatMap((item: any) =>
+                      Array.isArray(item?.content)
+                        ? item.content.map((part: any) =>
+                            typeof part?.text === "string" ? part.text : ""
+                          )
+                        : []
+                    )
+                    .join("")
+                : "";
+
+              const fullText = (
+                outputText ||
+                structuredText ||
+                evaluationBufferRef.current
+              ).trim();
               evaluationBufferRef.current = "";
               reportResponseIdRef.current = null;
               await processFinalReport(fullText);

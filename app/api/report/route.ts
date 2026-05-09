@@ -30,10 +30,18 @@ export async function POST(req: NextRequest) {
       (typeof body?.evaluation === "object" && body.evaluation) ||
       (typeof body?.finalReport === "object" && body.finalReport) ||
       (typeof body?.parsed === "object" && body.parsed) ||
-      {};
-    const asArray = (value: unknown) => Array.isArray(value) && value.length > 0 ? value : ["insufficient_evidence"];
-    const asText = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : "insufficient_evidence";
-    const cefr = typeof parsed.cefr_level === "string" && parsed.cefr_level.trim() ? parsed.cefr_level.trim() : "insufficient_evidence";
+      null;
+
+    if (!parsed) {
+      return NextResponse.json(
+        { success: false, error: "Missing evaluation payload", reason: "invalid_compat_payload" },
+        { status: 400 },
+      );
+    }
+
+    const asArray = (value: unknown) => (Array.isArray(value) ? value : []);
+    const asText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+    const cefr = asText((parsed as any).cefr_level);
     const transcript = Array.isArray(body?.transcript) ? body.transcript : [];
 
     let airtableId: string | null = null;
@@ -42,12 +50,12 @@ export async function POST(req: NextRequest) {
       airtableId = await saveLumaReport({
         email: candidateEmail,
         emailKeyNormalized: candidateEmail.toLowerCase(),
-        cefrLevel: cefr,
-        accent: asText(parsed.accent),
-        strengths: asArray(parsed.strengths),
-        weaknesses: asArray(parsed.weaknesses),
-        recommendations: asArray(parsed.recommendations),
-        overallComment: asText(parsed.overall_comment),
+        cefrLevel: cefr || undefined,
+        accent: asText((parsed as any).accent) || undefined,
+        strengths: asArray((parsed as any).strengths),
+        weaknesses: asArray((parsed as any).weaknesses),
+        recommendations: asArray((parsed as any).recommendations),
+        overallComment: asText((parsed as any).overall_comment) || undefined,
         reportStatus: "generated",
         reportVersion: "v1-compat",
         reportSource: "legacy_api_candidate_email",
@@ -74,7 +82,7 @@ export async function POST(req: NextRequest) {
             ? body.rawText
             : "",
       meta: {
-        cefrLevel: cefr,
+        cefrLevel: cefr || null,
       },
       compatibilityMode: true,
     }, {
